@@ -199,7 +199,7 @@
     <!-- TAB: APPLY -->
     <div id="tab-apply" class="tab-content">
       <div class="section-title">✏️ Apply for Any Date</div>
-      <p style="font-size:0.78rem;color:#666;margin-bottom:10px;text-align:left;">Mark leave, week off, or comp off for any future or past date.</p>
+      <p style="font-size:0.78rem;color:#666;margin-bottom:10px;text-align:left;">Mark leave, week off, or comp off for any date.</p>
       <label class="label">Select Date</label>
       <input type="date" id="applyDate">
       <label class="label">Type</label>
@@ -306,8 +306,6 @@
     });
   }
 
-  // ... (baaki pura script same hai, sirf texts change kiye hain)
-
   function switchTab(tab) {
     const names = ["mark","calendar","records","apply","regularize","resign"];
     document.querySelectorAll(".tab").forEach((t,i) => t.classList.toggle("active", names[i]===tab));
@@ -318,6 +316,455 @@
     if (tab==="resign") loadMyResignation(false);
   }
 
-  // Baaki functions same hain (login, clockIn, clockOut, etc.)
+  function login() {
+    const loginId = document.getElementById("loginId").value.trim();
+    const password = document.getElementById("password").value.trim();
+    if (!loginId || !password) { 
+      setStatus("⚠️ Please enter Login ID and Password."); 
+      return; 
+    }
+    setStatus("Logging in…"); 
+    setBtns(true);
+    callScript("login", { loginId, password }, function(res) {
+      setBtns(false);
+      if (res.status) {
+        currentUser = loginId; 
+        currentName = res.name;
+        document.getElementById("loginDiv").style.display = "none";
+        document.getElementById("attendanceDiv").style.display = "block";
+        document.getElementById("welcome").textContent = "Welcome, " + res.name + " 👋";
+        const today = new Date().toISOString().split("T")[0];
+        document.getElementById("applyDate").value = today;
+        document.getElementById("regDate").value = today;
+        document.getElementById("resignLastDay").value = today;
+        setStatus(""); 
+        startCamera();
+      } else {
+        setStatus("❌ " + (res.message || "Invalid Login."));
+      }
+    });
+  }
 
-  // (Pura script yahan paste karne ke liye space ki kami hai, lekin maine sirf texts change kiye hain. Agar pura script chahiye toh batao, main ek baar mein pura deta hoon.)
+  function startCamera() {
+    showError(""); 
+    showInfo("Starting camera…");
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: false })
+    .then(function(stream) {
+      cameraStream = stream;
+      const video = document.getElementById("video");
+      video.srcObject = stream; 
+      video.style.display = "block";
+      video.onloadedmetadata = function() { 
+        video.play(); 
+        showInfo("✅ Camera ready — click Take Photo."); 
+      };
+    })
+    .catch(function(err) {
+      showError("❌ Camera error: " + err.message); 
+      showInfo("");
+    });
+  }
+
+  function stopCamera() {
+    if (cameraStream) { 
+      cameraStream.getTracks().forEach(t => t.stop()); 
+      cameraStream = null; 
+    }
+  }
+
+  function snapPhoto() {
+    const video = document.getElementById("video");
+    if (!video.videoWidth) { 
+      setStatus("⚠️ Camera not ready, please wait."); 
+      return; 
+    }
+    const canvas = document.createElement("canvas");
+    canvas.width = video.videoWidth; 
+    canvas.height = video.videoHeight;
+    canvas.getContext("2d").drawImage(video, 0, 0);
+    photoBase64 = canvas.toDataURL("image/jpeg", 0.7);
+    document.getElementById("photoPreview").src = photoBase64;
+    document.getElementById("photoPreview").style.display = "block";
+    document.getElementById("video").style.display = "none";
+    document.getElementById("snapBtn").style.display = "none";
+    document.getElementById("retakeBtn").style.display = "block";
+    showInfo("✅ Photo captured! Now click Clock In or Clock Out.");
+    setStatus("");
+  }
+
+  function retakePhoto() {
+    photoBase64 = "";
+    document.getElementById("photoPreview").style.display = "none";
+    document.getElementById("photoPreview").src = "";
+    document.getElementById("video").style.display = "block";
+    document.getElementById("snapBtn").style.display = "block";
+    document.getElementById("retakeBtn").style.display = "none";
+    showInfo("✅ Camera ready — click Take Photo.");
+    setStatus("");
+  }
+
+  function getLocation(callback) {
+    if (!navigator.geolocation) { 
+      setBtns(false); 
+      setStatus("❌ Location not supported."); 
+      return; 
+    }
+    setStatus("📍 Please allow location access…");
+    navigator.geolocation.getCurrentPosition(
+      p => callback(p.coords.latitude, p.coords.longitude),
+      () => {
+        setBtns(false);
+        setStatus("❌ Location denied. Please allow and try again.");
+        showPopup("📍","Location Required!","Please allow location in browser.\n\n1. Click 🔒 in address bar\n2. Set Location → Allow\n3. Refresh and try again", false);
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+    );
+  }
+
+  function clockIn() {
+    if (!photoBase64) { 
+      setStatus("⚠️ Please take a photo first."); 
+      return; 
+    }
+    setStatus("📍 Getting location…"); 
+    setBtns(true);
+    getLocation(function(lat, lng) {
+      setStatus("⏳ Clocking In…");
+      callScript("clockIn", { loginId: currentUser, name: currentName, lat, lng, photo: photoBase64 }, function(res) {
+        setBtns(false);
+        const msg = res.message || "";
+        if (msg.includes("Successful")) {
+          setStatus(""); 
+          myData = [];
+          showPopup("✅","Clock In Successful!","Attendance recorded.\nTime: "+new Date().toLocaleTimeString(), false);
+          retakePhoto();
+        } else { 
+          setStatus("⚠️ " + msg); 
+        }
+      });
+    });
+  }
+
+  function clockOut() {
+    if (!photoBase64) { 
+      setStatus("⚠️ Please take a photo first."); 
+      return; 
+    }
+    setStatus("📍 Getting location…"); 
+    setBtns(true);
+    getLocation(function(lat, lng) {
+      setStatus("⏳ Clocking Out…");
+      callScript("clockOut", { loginId: currentUser, lat, lng, photo: photoBase64 }, function(res) {
+        setBtns(false);
+        const msg = res.message || "";
+        if (msg.includes("Successful")) {
+          setStatus(""); 
+          myData = [];
+          if (res.shortDuty) {
+            lastShortDutyDate = new Date().toISOString().split("T")[0];
+            showPopup("⚠️","Short Duty Detected!",
+              "You worked only " + res.hours + " hrs today.\nRequired: 9 hours.\n\nIn: " + res.inTime + "\nOut: " + res.outTime + "\n\nDo you want to submit a regularization request?",
+              true);
+          } else {
+            showPopup("🔴","Clock Out Successful!","Departure recorded.\nTime: "+new Date().toLocaleTimeString()+"\nHours: "+res.hours+" hrs", false);
+          }
+          retakePhoto();
+        } else { 
+          setStatus("⚠️ " + msg); 
+        }
+      });
+    });
+  }
+
+  function markWeekOff() { markToday("weekOff","Week Off","📅","Week Off Marked!"); }
+  function markLeave() { markToday("leave","Leave","🏖️","Leave Marked!"); }
+  function markCompOff() { markToday("compOff","Comp Off","🎁","Comp Off Marked!"); }
+
+  function markToday(action, label, icon, title) {
+    if (!confirm("Mark today as " + label + " for " + currentName + "?")) return;
+    setBtns(true); 
+    setStatus("Marking " + label + "…");
+    callScript(action, { loginId: currentUser, name: currentName }, function(res) {
+      setBtns(false);
+      const msg = res.message || "";
+      if (msg.includes("Successful")) {
+        setStatus(""); 
+        myData = [];
+        showPopup(icon, title, label + " recorded for today.", false);
+      } else { 
+        setStatus("⚠️ " + msg); 
+      }
+    });
+  }
+
+  function applyStatus() {
+    const dateVal = document.getElementById("applyDate").value;
+    const type = document.getElementById("applyType").value;
+    if (!dateVal) { 
+      document.getElementById("applyMsg").textContent="⚠️ Please select a date."; 
+      return; 
+    }
+    const labels = { leave:"Leave", weekOff:"Week Off", compOff:"Comp Off" };
+    const icons = { leave:"🏖️", weekOff:"📅", compOff:"🎁" };
+    if (!confirm("Mark " + dateVal + " as " + labels[type] + " for " + currentName + "?")) return;
+    document.getElementById("applyBtn").disabled = true;
+    document.getElementById("applyMsg").textContent = "Applying…";
+    callScript(type, { loginId: currentUser, name: currentName, date: dateVal }, function(res) {
+      document.getElementById("applyBtn").disabled = false;
+      const msg = res.message || "";
+      document.getElementById("applyMsg").textContent = msg;
+      if (msg.includes("Successful")) {
+        myData = [];
+        showPopup(icons[type], labels[type]+" Marked!", labels[type]+" recorded for "+dateVal, false);
+      }
+    });
+  }
+
+  function submitRegularize() {
+    const date = document.getElementById("regDate").value;
+    const reason = document.getElementById("regReason").value.trim();
+    const msgEl = document.getElementById("regMsg");
+    if (!date) { 
+      msgEl.textContent = "⚠️ Please select a date."; 
+      msgEl.style.color="#c62828"; 
+      return; 
+    }
+    if (!reason) { 
+      msgEl.textContent = "⚠️ Please enter a reason."; 
+      msgEl.style.color="#c62828"; 
+      return; 
+    }
+    if (reason.length < 10) { 
+      msgEl.textContent = "⚠️ Reason is too short."; 
+      msgEl.style.color="#c62828"; 
+      return; 
+    }
+    document.getElementById("submitRegBtn").disabled = true;
+    msgEl.textContent = "Submitting…"; 
+    msgEl.style.color="#555";
+    callScript("regularizeRequest", { loginId: currentUser, name: currentName, date, reason }, function(res) {
+      document.getElementById("submitRegBtn").disabled = false;
+      const msg = res.message || "";
+      msgEl.textContent = msg;
+      if (msg.includes("successfully")) {
+        msgEl.style.color = "#2e7d32";
+        document.getElementById("regReason").value = "";
+        myRequests = [];
+        loadMyRequests(true);
+        showPopup("📤","Request Submitted!","Your regularization request has been sent to admin.", false);
+      } else { 
+        msgEl.style.color = "#c62828"; 
+      }
+    });
+  }
+
+  function loadMyRequests(force) {
+    if (myRequests.length > 0 && !force) { 
+      renderRequests(); 
+      return; 
+    }
+    document.getElementById("requestsList").innerHTML = "<div class='loading-spinner'>Loading…</div>";
+    callScript("getMyRequests", { loginId: currentUser }, function(res) {
+      myRequests = res.requests || [];
+      renderRequests();
+    });
+  }
+
+  function renderRequests() {
+    const el = document.getElementById("requestsList");
+    if (myRequests.length === 0) { 
+      el.innerHTML = "<div class='empty-msg'>No requests submitted yet.</div>"; 
+      return; 
+    }
+    let html = "";
+    myRequests.forEach(r => {
+      const statusCls = r.status === "Approved" ? "badge-approved" : r.status === "Rejected" ? "badge-rejected" : "badge-pending";
+      html += `<div class="reg-card">
+        <div class="reg-date">📅 ${r.attDate} &nbsp;<span class="badge ${statusCls}">${r.status}</span></div>
+        <div class="reg-row"><span>⏰ In: ${r.inTime||"-"}</span><span>Out: ${r.outTime||"-"}</span><span>⏱ ${r.hours||"-"} hrs</span></div>
+        <div class="reg-reason">💬 "${r.reason}"</div>
+        ${r.adminRemark ? `<div class="reg-remark">🔔 Admin: ${r.adminRemark}</div>` : ""}
+        <div style="font-size:0.68rem;color:#aaa;margin-top:4px;">Submitted: ${r.requestDate}${r.approvedOn ? " | Reviewed: "+r.approvedOn : ""}</div>
+      </div>`;
+    });
+    el.innerHTML = html;
+  }
+
+  function submitResignation() {
+    const lastDay = document.getElementById("resignLastDay").value;
+    const reason = document.getElementById("resignReason").value.trim();
+    const msgEl = document.getElementById("resignMsg");
+    if (!lastDay) { 
+      msgEl.textContent = "⚠️ Please select last working day."; 
+      msgEl.style.color="#c62828"; 
+      return; 
+    }
+    if (!reason || reason.length < 10) { 
+      msgEl.textContent = "⚠️ Reason must be at least 10 characters."; 
+      msgEl.style.color="#c62828"; 
+      return; 
+    }
+    if (!confirm("Are you sure you want to submit resignation?\nThis will notify the admin.")) return;
+    const btn = document.querySelector("#tab-resign .btn-resign-submit");
+    btn.disabled = true;
+    msgEl.textContent = "Submitting…"; 
+    msgEl.style.color="#555";
+    callScript("submitResignation", { loginId: currentUser, name: currentName, lastWorkingDay: lastDay, reason }, function(res) {
+      btn.disabled = false;
+      msgEl.textContent = res.message || "";
+      if (res.status) {
+        msgEl.style.color = "#2e7d32";
+        document.getElementById("resignReason").value = "";
+        loadMyResignation(true);
+        showPopup("📤","Resignation Submitted!","Your resignation request has been sent to admin.\nYou can track the status here.", false);
+      } else { 
+        msgEl.style.color = "#c62828"; 
+      }
+    });
+  }
+
+  function loadMyResignation(force) {
+    const el = document.getElementById("resignStatusDiv");
+    if (!el) return;
+    el.innerHTML = "<div class='loading-spinner'>Loading…</div>";
+    callScript("getMyResignation", { loginId: currentUser }, function(res) {
+      const list = res.resignations || [];
+      if (list.length === 0) { 
+        el.innerHTML = "<div class='empty-msg'>No resignation request submitted yet.</div>"; 
+        return; 
+      }
+      let html = "";
+      list.forEach(r => {
+        const statusCls = r.status === "Approved" ? "badge-approved" : r.status === "Rejected" ? "badge-rejected" : "badge-pending";
+        html += `<div class="reg-card">
+          <div class="reg-date">📅 Submitted: ${r.submitDate} &nbsp;<span class="badge ${statusCls}">${r.status}</span></div>
+          <div class="reg-row"><span>🗓 Last Working Day: <b>${r.lastWorkingDay}</b></span></div>
+          <div class="reg-reason">💬 "${r.reason}"</div>
+          ${r.adminRemark ? `<div class="reg-remark">🔔 Admin: ${r.adminRemark}</div>` : ""}
+          ${r.approvedBy ? `<div style="font-size:0.68rem;color:#aaa;margin-top:4px;">Approved by: ${r.approvedBy} on ${r.approvedOn}</div>` : ""}
+        </div>`;
+      });
+      el.innerHTML = html;
+    });
+  }
+
+  function loadMyData() {
+    if (myData.length > 0) { 
+      renderCalendar(); 
+      renderRecords(); 
+      return; 
+    }
+    callScript("getMyData", { loginId: currentUser }, function(res) {
+      if (res.rows) { 
+        myData = res.rows; 
+        renderCalendar(); 
+        renderRecords(); 
+        renderSummary(res.summary); 
+      }
+    });
+  }
+
+  function changeMonth(dir) {
+    calMonth += dir;
+    if (calMonth > 11) { calMonth=0; calYear++; }
+    if (calMonth < 0) { calMonth=11; calYear--; }
+    renderCalendar();
+  }
+
+  function renderCalendar() {
+    const months=["January","February","March","April","May","June","July","August","September","October","November","December"];
+    document.getElementById("calMonthLabel").textContent = months[calMonth]+" "+calYear;
+    const todayStr = toDateStr(new Date());
+    const firstDay = new Date(calYear, calMonth, 1).getDay();
+    const daysInMonth = new Date(calYear, calMonth+1, 0).getDate();
+    const statusMap = {};
+    myData.forEach(r => { statusMap[r.date] = r; });
+    let html = "";
+    ["Su","Mo","Tu","We","Th","Fr","Sa"].forEach(d => { html+=`<div class="cal-day-name">${d}</div>`; });
+    for (let i=0; i<firstDay; i++) html+=`<div class="cal-day cal-empty"></div>`;
+    for (let d=1; d<=daysInMonth; d++) {
+      const dateStr = calYear+"-"+String(calMonth+1).padStart(2,"0")+"-"+String(d).padStart(2,"0");
+      const isToday = dateStr===todayStr;
+      const isFuture= dateStr>todayStr;
+      const rec = statusMap[dateStr];
+      let cls = "cal-day ", lbl = "";
+      if (isFuture) { cls+="cal-future"; }
+      else if (rec) {
+        const s=(rec.status||"").toLowerCase();
+        if (s==="present") { cls+="cal-present"; lbl="P"; }
+        else if (s==="leave") { cls+="cal-leave"; lbl="L"; }
+        else if (s==="week off") { cls+="cal-weekoff"; lbl="WO"; }
+        else if (s==="comp off") { cls+="cal-compoff"; lbl="CO"; }
+        else if (s==="short duty") { cls+="cal-shortduty"; lbl="SD"; }
+      } else { cls+="cal-absent"; lbl="A"; }
+      if (isToday) cls+=" cal-today";
+      html+=`<div class="${cls}"><div class="day-num">${d}</div><div class="day-status">${lbl}</div></div>`;
+    }
+    document.getElementById("calGrid").innerHTML = html;
+  }
+
+  function renderSummary(s) {
+    if (!s) return;
+    document.getElementById("summaryGrid").innerHTML = `
+      <div class="summary-card sc-present"><div class="num">${s.present}</div><div class="lbl">✅ Present</div></div>
+      <div class="summary-card sc-shortduty"><div class="num">${s.shortDuty}</div><div class="lbl">⚠️ Short Duty</div></div>
+      <div class="summary-card sc-absent"><div class="num">${s.absent||0}</div><div class="lbl">❌ Absent</div></div>
+      <div class="summary-card sc-leave"><div class="num">${s.leave}</div><div class="lbl">🏖️ Leave</div></div>
+      <div class="summary-card sc-weekoff"><div class="num">${s.weekOff}</div><div class="lbl">📅 Week Off</div></div>
+      <div class="summary-card sc-compoff"><div class="num">${s.compOff}</div><div class="lbl">🎁 Comp Off</div></div>
+    `;
+  }
+
+  function renderRecords() {
+    if (myData.length===0) { 
+      document.getElementById("recordsTable").innerHTML="<div class='empty-msg'>No records found.</div>"; 
+      return; 
+    }
+    const sorted=[...myData].sort((a,b)=>b.date.localeCompare(a.date));
+    let html=`<table class="records-table"><thead><tr><th>Date</th><th>Status</th><th>In</th><th>Out</th><th>Hrs</th></tr></thead><tbody>`;
+    sorted.forEach(r => {
+      const s=(r.status||"").toLowerCase().replace(/\s/g,"");
+      const badge=`<span class="badge badge-${s}">${r.status||"-"}</span>`;
+      html+=`<tr><td>${r.date}</td><td>${badge}</td><td>${r.inTime||"-"}</td><td>${r.outTime||"-"}</td><td>${r.hours||"-"}</td></tr>`;
+    });
+    html+="</tbody></table>";
+    document.getElementById("recordsTable").innerHTML=html;
+  }
+
+  function exportCSV() {
+    callScript("exportMyData", { loginId: currentUser, name: currentName }, function(res) {
+      if (res.csv) {
+        const blob=new Blob([res.csv],{type:"text/csv;charset=utf-8;"});
+        const url=URL.createObjectURL(blob);
+        const a=document.createElement("a");
+        a.href=url; 
+        a.download=currentName.replace(/\s/g,"_")+"_Attendance.csv"; 
+        a.click();
+        URL.revokeObjectURL(url);
+      }
+    });
+  }
+
+  function logout() {
+    stopCamera(); 
+    retakePhoto();
+    currentUser = ""; 
+    currentName = ""; 
+    myData = []; 
+    myRequests = [];
+    document.getElementById("loginId").value = "";
+    document.getElementById("password").value = "";
+    document.getElementById("attendanceDiv").style.display = "none";
+    document.getElementById("loginDiv").style.display = "block";
+    showInfo(""); 
+    showError(""); 
+    setStatus("");
+    switchTab("mark");
+  }
+
+  function toDateStr(d) {
+    return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+  }
+</script>
+</body>
+</html>

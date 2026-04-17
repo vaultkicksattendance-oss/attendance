@@ -105,10 +105,13 @@
     .label { font-size: 0.82rem; color: #444; display: block; text-align: left; margin-bottom: 4px; }
     .loading-spinner { color: #888; font-size: 0.85rem; padding: 20px; }
     .empty-msg { color: #aaa; font-size: 0.85rem; padding: 20px; text-align: center; }
-    /* Resign tab specific */
     .resign-warning-box { background: #fff3e0; border: 1px solid #ffcc02; border-radius: 8px; padding: 12px; margin-bottom: 14px; }
     .resign-warning-box .resign-box-title { font-size: 0.82rem; font-weight: 700; color: #c62828; margin-bottom: 8px; }
     .btn-resign-submit { background: #c62828 !important; color: #fff; }
+    /* Upload progress bar */
+    #uploadProgress { display: none; background: #e3f2fd; border-radius: 8px; padding: 8px 10px; font-size: 0.8rem; color: #1565c0; margin-bottom: 8px; text-align: center; }
+    .progress-bar-wrap { background: #bbdefb; border-radius: 4px; height: 6px; margin-top: 6px; overflow: hidden; }
+    .progress-bar-fill { background: #1565c0; height: 100%; border-radius: 4px; transition: width 0.3s; }
   </style>
 </head>
 <body>
@@ -153,6 +156,11 @@
     <div id="tab-mark" class="tab-content active">
       <div id="infoBox"></div>
       <div id="errorBox"></div>
+      <!-- Upload progress -->
+      <div id="uploadProgress">
+        <span id="uploadMsg">📤 Uploading photo…</span>
+        <div class="progress-bar-wrap"><div class="progress-bar-fill" id="progressFill" style="width:0%"></div></div>
+      </div>
       <video id="video" autoplay playsinline muted></video>
       <img id="photoPreview" alt="Captured Photo">
       <button id="snapBtn" onclick="snapPhoto()">📸 Take Photo</button>
@@ -254,7 +262,14 @@
 
 <script>
   const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx-8R5SKnShSOiWda1EmazSNTesyScTeMM6nEGANtZQlkJGuYJd7Qq1IBEOQo0Dae68zg/exec";
-  
+
+  // ═══════════════════════════════════════════════
+  // CLOUDINARY CONFIG
+  // ═══════════════════════════════════════════════
+  const CLOUDINARY_CLOUD = "drjgoxwfu";
+  const CLOUDINARY_PRESET = "vaultkicks_attendance";
+  const CLOUDINARY_URL = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/image/upload`;
+
   let currentUser = "";
   let currentName = "";
   let cameraStream = null;
@@ -268,6 +283,13 @@
   function setStatus(msg) { document.getElementById("statusMsg").textContent = msg; }
   function showInfo(msg) { const b=document.getElementById("infoBox"); b.textContent=msg; b.style.display=msg?"block":"none"; }
   function showError(msg) { const b=document.getElementById("errorBox"); b.textContent=msg; b.style.display=msg?"block":"none"; }
+
+  function showUploadProgress(show, pct, msg) {
+    const el = document.getElementById("uploadProgress");
+    el.style.display = show ? "block" : "none";
+    if (msg) document.getElementById("uploadMsg").textContent = msg;
+    if (pct !== undefined) document.getElementById("progressFill").style.width = pct + "%";
+  }
 
   function setBtns(flag) {
     ["loginBtn","clockInBtn","clockOutBtn","snapBtn","weekOffBtn","leaveBtn","compOffBtn","applyBtn","submitRegBtn"].forEach(id => {
@@ -300,9 +322,65 @@
     })
     .then(r => r.json())
     .then(callback)
-    .catch(err => { 
-      setBtns(false); 
-      setStatus("❌ Network error: " + err.message); 
+    .catch(err => {
+      setBtns(false);
+      setStatus("❌ Network error: " + err.message);
+    });
+  }
+
+  // ═══════════════════════════════════════════════
+  // CLOUDINARY UPLOAD — Returns promise with URL
+  // ═══════════════════════════════════════════════
+  function uploadToCloudinary(base64Data) {
+    return new Promise((resolve, reject) => {
+      showUploadProgress(true, 10, "📤 Uploading photo to cloud…");
+
+      // base64 se blob banana
+      const byteStr = atob(base64Data.split(",")[1]);
+      const mimeType = "image/jpeg";
+      const ab = new ArrayBuffer(byteStr.length);
+      const ia = new Uint8Array(ab);
+      for (let i = 0; i < byteStr.length; i++) ia[i] = byteStr.charCodeAt(i);
+      const blob = new Blob([ab], { type: mimeType });
+
+      const formData = new FormData();
+      formData.append("file", blob, "attendance_" + Date.now() + ".jpg");
+      formData.append("upload_preset", CLOUDINARY_PRESET);
+      formData.append("folder", "vault_attendance");
+
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", CLOUDINARY_URL, true);
+
+      xhr.upload.onprogress = function(e) {
+        if (e.lengthComputable) {
+          const pct = Math.round((e.loaded / e.total) * 80);
+          showUploadProgress(true, pct, "📤 Uploading… " + pct + "%");
+        }
+      };
+
+      xhr.onload = function() {
+        showUploadProgress(true, 100, "✅ Photo uploaded!");
+        if (xhr.status === 200) {
+          try {
+            const res = JSON.parse(xhr.responseText);
+            setTimeout(() => showUploadProgress(false), 800);
+            resolve(res.secure_url);
+          } catch(e) {
+            showUploadProgress(false);
+            reject(new Error("Cloudinary parse error"));
+          }
+        } else {
+          showUploadProgress(false);
+          reject(new Error("Cloudinary upload failed: " + xhr.status));
+        }
+      };
+
+      xhr.onerror = function() {
+        showUploadProgress(false);
+        reject(new Error("Cloudinary network error"));
+      };
+
+      xhr.send(formData);
     });
   }
 
@@ -319,17 +397,12 @@
   function login() {
     const loginId = document.getElementById("loginId").value.trim();
     const password = document.getElementById("password").value.trim();
-    if (!loginId || !password) { 
-      setStatus("⚠️ Please enter Login ID and Password."); 
-      return; 
-    }
-    setStatus("Logging in…"); 
-    setBtns(true);
+    if (!loginId || !password) { setStatus("⚠️ Please enter Login ID and Password."); return; }
+    setStatus("Logging in…"); setBtns(true);
     callScript("login", { loginId, password }, function(res) {
       setBtns(false);
       if (res.status) {
-        currentUser = loginId; 
-        currentName = res.name;
+        currentUser = loginId; currentName = res.name;
         document.getElementById("loginDiv").style.display = "none";
         document.getElementById("attendanceDiv").style.display = "block";
         document.getElementById("welcome").textContent = "Welcome, " + res.name + " 👋";
@@ -337,8 +410,7 @@
         document.getElementById("applyDate").value = today;
         document.getElementById("regDate").value = today;
         document.getElementById("resignLastDay").value = today;
-        setStatus(""); 
-        startCamera();
+        setStatus(""); startCamera();
       } else {
         setStatus("❌ " + (res.message || "Invalid Login."));
       }
@@ -346,41 +418,28 @@
   }
 
   function startCamera() {
-    showError(""); 
-    showInfo("Starting camera…");
+    showError(""); showInfo("Starting camera…");
     navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: false })
     .then(function(stream) {
       cameraStream = stream;
       const video = document.getElementById("video");
-      video.srcObject = stream; 
-      video.style.display = "block";
-      video.onloadedmetadata = function() { 
-        video.play(); 
-        showInfo("✅ Camera ready — click Take Photo."); 
-      };
+      video.srcObject = stream; video.style.display = "block";
+      video.onloadedmetadata = function() { video.play(); showInfo("✅ Camera ready — click Take Photo."); };
     })
     .catch(function(err) {
-      showError("❌ Camera error: " + err.message); 
-      showInfo("");
+      showError("❌ Camera error: " + err.message); showInfo("");
     });
   }
 
   function stopCamera() {
-    if (cameraStream) { 
-      cameraStream.getTracks().forEach(t => t.stop()); 
-      cameraStream = null; 
-    }
+    if (cameraStream) { cameraStream.getTracks().forEach(t => t.stop()); cameraStream = null; }
   }
 
   function snapPhoto() {
     const video = document.getElementById("video");
-    if (!video.videoWidth) { 
-      setStatus("⚠️ Camera not ready, please wait."); 
-      return; 
-    }
+    if (!video.videoWidth) { setStatus("⚠️ Camera not ready, please wait."); return; }
     const canvas = document.createElement("canvas");
-    canvas.width = video.videoWidth; 
-    canvas.height = video.videoHeight;
+    canvas.width = video.videoWidth; canvas.height = video.videoHeight;
     canvas.getContext("2d").drawImage(video, 0, 0);
     photoBase64 = canvas.toDataURL("image/jpeg", 0.7);
     document.getElementById("photoPreview").src = photoBase64;
@@ -404,11 +463,7 @@
   }
 
   function getLocation(callback) {
-    if (!navigator.geolocation) { 
-      setBtns(false); 
-      setStatus("❌ Location not supported."); 
-      return; 
-    }
+    if (!navigator.geolocation) { setBtns(false); setStatus("❌ Location not supported."); return; }
     setStatus("📍 Please allow location access…");
     navigator.geolocation.getCurrentPosition(
       p => callback(p.coords.latitude, p.coords.longitude),
@@ -421,58 +476,72 @@
     );
   }
 
+  // ═══════════════════════════════════════════════
+  // CLOCK IN — Photo pehle Cloudinary pe upload hoga
+  // ═══════════════════════════════════════════════
   function clockIn() {
-    if (!photoBase64) { 
-      setStatus("⚠️ Please take a photo first."); 
-      return; 
-    }
-    setStatus("📍 Getting location…"); 
-    setBtns(true);
+    if (!photoBase64) { setStatus("⚠️ Please take a photo first."); return; }
+    setStatus("📍 Getting location…"); setBtns(true);
     getLocation(function(lat, lng) {
-      setStatus("⏳ Clocking In…");
-      callScript("clockIn", { loginId: currentUser, name: currentName, lat, lng, photo: photoBase64 }, function(res) {
-        setBtns(false);
-        const msg = res.message || "";
-        if (msg.includes("Successful")) {
-          setStatus(""); 
-          myData = [];
-          showPopup("✅","Clock In Successful!","Attendance recorded.\nTime: "+new Date().toLocaleTimeString(), false);
-          retakePhoto();
-        } else { 
-          setStatus("⚠️ " + msg); 
-        }
-      });
+      setStatus("📤 Uploading photo…");
+      uploadToCloudinary(photoBase64)
+        .then(function(photoUrl) {
+          setStatus("⏳ Clocking In…");
+          callScript("clockIn", { loginId: currentUser, name: currentName, lat, lng, photoUrl }, function(res) {
+            setBtns(false);
+            const msg = res.message || "";
+            if (msg.includes("Successful")) {
+              setStatus(""); myData = [];
+              showPopup("✅","Clock In Successful!","Attendance recorded.\nTime: "+new Date().toLocaleTimeString(), false);
+              retakePhoto();
+            } else {
+              setStatus("⚠️ " + msg);
+            }
+          });
+        })
+        .catch(function(err) {
+          setBtns(false);
+          setStatus("❌ Photo upload failed: " + err.message);
+          showError("❌ Photo upload failed. Check internet and try again.");
+        });
     });
   }
 
+  // ═══════════════════════════════════════════════
+  // CLOCK OUT — Photo pehle Cloudinary pe upload hoga
+  // ═══════════════════════════════════════════════
   function clockOut() {
-    if (!photoBase64) { 
-      setStatus("⚠️ Please take a photo first."); 
-      return; 
-    }
-    setStatus("📍 Getting location…"); 
-    setBtns(true);
+    if (!photoBase64) { setStatus("⚠️ Please take a photo first."); return; }
+    setStatus("📍 Getting location…"); setBtns(true);
     getLocation(function(lat, lng) {
-      setStatus("⏳ Clocking Out…");
-      callScript("clockOut", { loginId: currentUser, lat, lng, photo: photoBase64 }, function(res) {
-        setBtns(false);
-        const msg = res.message || "";
-        if (msg.includes("Successful")) {
-          setStatus(""); 
-          myData = [];
-          if (res.shortDuty) {
-            lastShortDutyDate = new Date().toISOString().split("T")[0];
-            showPopup("⚠️","Short Duty Detected!",
-              "You worked only " + res.hours + " hrs today.\nRequired: 9 hours.\n\nIn: " + res.inTime + "\nOut: " + res.outTime + "\n\nDo you want to submit a regularization request?",
-              true);
-          } else {
-            showPopup("🔴","Clock Out Successful!","Departure recorded.\nTime: "+new Date().toLocaleTimeString()+"\nHours: "+res.hours+" hrs", false);
-          }
-          retakePhoto();
-        } else { 
-          setStatus("⚠️ " + msg); 
-        }
-      });
+      setStatus("📤 Uploading photo…");
+      uploadToCloudinary(photoBase64)
+        .then(function(photoUrl) {
+          setStatus("⏳ Clocking Out…");
+          callScript("clockOut", { loginId: currentUser, lat, lng, photoUrl }, function(res) {
+            setBtns(false);
+            const msg = res.message || "";
+            if (msg.includes("Successful")) {
+              setStatus(""); myData = [];
+              if (res.shortDuty) {
+                lastShortDutyDate = new Date().toISOString().split("T")[0];
+                showPopup("⚠️","Short Duty Detected!",
+                  "You worked only " + res.hours + " hrs today.\nRequired: 9 hours.\n\nIn: " + res.inTime + "\nOut: " + res.outTime + "\n\nDo you want to submit a regularization request?",
+                  true);
+              } else {
+                showPopup("🔴","Clock Out Successful!","Departure recorded.\nTime: "+new Date().toLocaleTimeString()+"\nHours: "+res.hours+" hrs", false);
+              }
+              retakePhoto();
+            } else {
+              setStatus("⚠️ " + msg);
+            }
+          });
+        })
+        .catch(function(err) {
+          setBtns(false);
+          setStatus("❌ Photo upload failed: " + err.message);
+          showError("❌ Photo upload failed. Check internet and try again.");
+        });
     });
   }
 
@@ -482,28 +551,21 @@
 
   function markToday(action, label, icon, title) {
     if (!confirm("Mark today as " + label + " for " + currentName + "?")) return;
-    setBtns(true); 
-    setStatus("Marking " + label + "…");
+    setBtns(true); setStatus("Marking " + label + "…");
     callScript(action, { loginId: currentUser, name: currentName }, function(res) {
       setBtns(false);
       const msg = res.message || "";
       if (msg.includes("Successful")) {
-        setStatus(""); 
-        myData = [];
+        setStatus(""); myData = [];
         showPopup(icon, title, label + " recorded for today.", false);
-      } else { 
-        setStatus("⚠️ " + msg); 
-      }
+      } else { setStatus("⚠️ " + msg); }
     });
   }
 
   function applyStatus() {
     const dateVal = document.getElementById("applyDate").value;
     const type = document.getElementById("applyType").value;
-    if (!dateVal) { 
-      document.getElementById("applyMsg").textContent="⚠️ Please select a date."; 
-      return; 
-    }
+    if (!dateVal) { document.getElementById("applyMsg").textContent="⚠️ Please select a date."; return; }
     const labels = { leave:"Leave", weekOff:"Week Off", compOff:"Comp Off" };
     const icons = { leave:"🏖️", weekOff:"📅", compOff:"🎁" };
     if (!confirm("Mark " + dateVal + " as " + labels[type] + " for " + currentName + "?")) return;
@@ -524,24 +586,11 @@
     const date = document.getElementById("regDate").value;
     const reason = document.getElementById("regReason").value.trim();
     const msgEl = document.getElementById("regMsg");
-    if (!date) { 
-      msgEl.textContent = "⚠️ Please select a date."; 
-      msgEl.style.color="#c62828"; 
-      return; 
-    }
-    if (!reason) { 
-      msgEl.textContent = "⚠️ Please enter a reason."; 
-      msgEl.style.color="#c62828"; 
-      return; 
-    }
-    if (reason.length < 10) { 
-      msgEl.textContent = "⚠️ Reason is too short."; 
-      msgEl.style.color="#c62828"; 
-      return; 
-    }
+    if (!date) { msgEl.textContent = "⚠️ Please select a date."; msgEl.style.color="#c62828"; return; }
+    if (!reason) { msgEl.textContent = "⚠️ Please enter a reason."; msgEl.style.color="#c62828"; return; }
+    if (reason.length < 10) { msgEl.textContent = "⚠️ Reason is too short."; msgEl.style.color="#c62828"; return; }
     document.getElementById("submitRegBtn").disabled = true;
-    msgEl.textContent = "Submitting…"; 
-    msgEl.style.color="#555";
+    msgEl.textContent = "Submitting…"; msgEl.style.color="#555";
     callScript("regularizeRequest", { loginId: currentUser, name: currentName, date, reason }, function(res) {
       document.getElementById("submitRegBtn").disabled = false;
       const msg = res.message || "";
@@ -552,17 +601,12 @@
         myRequests = [];
         loadMyRequests(true);
         showPopup("📤","Request Submitted!","Your regularization request has been sent to admin.", false);
-      } else { 
-        msgEl.style.color = "#c62828"; 
-      }
+      } else { msgEl.style.color = "#c62828"; }
     });
   }
 
   function loadMyRequests(force) {
-    if (myRequests.length > 0 && !force) { 
-      renderRequests(); 
-      return; 
-    }
+    if (myRequests.length > 0 && !force) { renderRequests(); return; }
     document.getElementById("requestsList").innerHTML = "<div class='loading-spinner'>Loading…</div>";
     callScript("getMyRequests", { loginId: currentUser }, function(res) {
       myRequests = res.requests || [];
@@ -572,10 +616,7 @@
 
   function renderRequests() {
     const el = document.getElementById("requestsList");
-    if (myRequests.length === 0) { 
-      el.innerHTML = "<div class='empty-msg'>No requests submitted yet.</div>"; 
-      return; 
-    }
+    if (myRequests.length === 0) { el.innerHTML = "<div class='empty-msg'>No requests submitted yet.</div>"; return; }
     let html = "";
     myRequests.forEach(r => {
       const statusCls = r.status === "Approved" ? "badge-approved" : r.status === "Rejected" ? "badge-rejected" : "badge-pending";
@@ -594,21 +635,12 @@
     const lastDay = document.getElementById("resignLastDay").value;
     const reason = document.getElementById("resignReason").value.trim();
     const msgEl = document.getElementById("resignMsg");
-    if (!lastDay) { 
-      msgEl.textContent = "⚠️ Please select last working day."; 
-      msgEl.style.color="#c62828"; 
-      return; 
-    }
-    if (!reason || reason.length < 10) { 
-      msgEl.textContent = "⚠️ Reason must be at least 10 characters."; 
-      msgEl.style.color="#c62828"; 
-      return; 
-    }
+    if (!lastDay) { msgEl.textContent = "⚠️ Please select last working day."; msgEl.style.color="#c62828"; return; }
+    if (!reason || reason.length < 10) { msgEl.textContent = "⚠️ Reason must be at least 10 characters."; msgEl.style.color="#c62828"; return; }
     if (!confirm("Are you sure you want to submit resignation?\nThis will notify the admin.")) return;
     const btn = document.querySelector("#tab-resign .btn-resign-submit");
     btn.disabled = true;
-    msgEl.textContent = "Submitting…"; 
-    msgEl.style.color="#555";
+    msgEl.textContent = "Submitting…"; msgEl.style.color="#555";
     callScript("submitResignation", { loginId: currentUser, name: currentName, lastWorkingDay: lastDay, reason }, function(res) {
       btn.disabled = false;
       msgEl.textContent = res.message || "";
@@ -617,9 +649,7 @@
         document.getElementById("resignReason").value = "";
         loadMyResignation(true);
         showPopup("📤","Resignation Submitted!","Your resignation request has been sent to admin.\nYou can track the status here.", false);
-      } else { 
-        msgEl.style.color = "#c62828"; 
-      }
+      } else { msgEl.style.color = "#c62828"; }
     });
   }
 
@@ -629,10 +659,7 @@
     el.innerHTML = "<div class='loading-spinner'>Loading…</div>";
     callScript("getMyResignation", { loginId: currentUser }, function(res) {
       const list = res.resignations || [];
-      if (list.length === 0) { 
-        el.innerHTML = "<div class='empty-msg'>No resignation request submitted yet.</div>"; 
-        return; 
-      }
+      if (list.length === 0) { el.innerHTML = "<div class='empty-msg'>No resignation request submitted yet.</div>"; return; }
       let html = "";
       list.forEach(r => {
         const statusCls = r.status === "Approved" ? "badge-approved" : r.status === "Rejected" ? "badge-rejected" : "badge-pending";
@@ -649,18 +676,9 @@
   }
 
   function loadMyData() {
-    if (myData.length > 0) { 
-      renderCalendar(); 
-      renderRecords(); 
-      return; 
-    }
+    if (myData.length > 0) { renderCalendar(); renderRecords(); return; }
     callScript("getMyData", { loginId: currentUser }, function(res) {
-      if (res.rows) { 
-        myData = res.rows; 
-        renderCalendar(); 
-        renderRecords(); 
-        renderSummary(res.summary); 
-      }
+      if (res.rows) { myData = res.rows; renderCalendar(); renderRecords(); renderSummary(res.summary); }
     });
   }
 
@@ -685,7 +703,7 @@
     for (let d=1; d<=daysInMonth; d++) {
       const dateStr = calYear+"-"+String(calMonth+1).padStart(2,"0")+"-"+String(d).padStart(2,"0");
       const isToday = dateStr===todayStr;
-      const isFuture= dateStr>todayStr;
+      const isFuture = dateStr>todayStr;
       const rec = statusMap[dateStr];
       let cls = "cal-day ", lbl = "";
       if (isFuture) { cls+="cal-future"; }
@@ -716,10 +734,7 @@
   }
 
   function renderRecords() {
-    if (myData.length===0) { 
-      document.getElementById("recordsTable").innerHTML="<div class='empty-msg'>No records found.</div>"; 
-      return; 
-    }
+    if (myData.length===0) { document.getElementById("recordsTable").innerHTML="<div class='empty-msg'>No records found.</div>"; return; }
     const sorted=[...myData].sort((a,b)=>b.date.localeCompare(a.date));
     let html=`<table class="records-table"><thead><tr><th>Date</th><th>Status</th><th>In</th><th>Out</th><th>Hrs</th></tr></thead><tbody>`;
     sorted.forEach(r => {
@@ -737,28 +752,20 @@
         const blob=new Blob([res.csv],{type:"text/csv;charset=utf-8;"});
         const url=URL.createObjectURL(blob);
         const a=document.createElement("a");
-        a.href=url; 
-        a.download=currentName.replace(/\s/g,"_")+"_Attendance.csv"; 
-        a.click();
+        a.href=url; a.download=currentName.replace(/\s/g,"_")+"_Attendance.csv"; a.click();
         URL.revokeObjectURL(url);
       }
     });
   }
 
   function logout() {
-    stopCamera(); 
-    retakePhoto();
-    currentUser = ""; 
-    currentName = ""; 
-    myData = []; 
-    myRequests = [];
+    stopCamera(); retakePhoto();
+    currentUser = ""; currentName = ""; myData = []; myRequests = [];
     document.getElementById("loginId").value = "";
     document.getElementById("password").value = "";
     document.getElementById("attendanceDiv").style.display = "none";
     document.getElementById("loginDiv").style.display = "block";
-    showInfo(""); 
-    showError(""); 
-    setStatus("");
+    showInfo(""); showError(""); setStatus("");
     switchTab("mark");
   }
 

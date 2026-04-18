@@ -1,0 +1,949 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>PUMA Bill Manager</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --red:#c62828;--red2:#e53935;--red3:#b71c1c;
+  --bg:#f0f2f5;--card:#fff;--border:#e0e0e0;
+  --text:#1a1a2e;--sub:#6b7280;--green:#2e7d32;
+  --blue:#1565c0;--orange:#e65100;--purple:#6a1b9a;
+}
+body{font-family:'Segoe UI',sans-serif;background:var(--bg);min-height:100vh;display:flex;justify-content:center;padding:16px 0 80px}
+
+/* CARD */
+.card{background:var(--card);border-radius:16px;padding:20px 16px;box-shadow:0 2px 24px rgba(0,0,0,0.10);width:400px;max-width:100vw}
+
+/* HEADER */
+.hdr{text-align:center;margin-bottom:16px}
+.hdr h2{color:var(--red);font-size:1.2rem;font-weight:800;letter-spacing:0.5px}
+.hdr .sub{font-size:0.72rem;color:var(--sub);margin-top:2px}
+.hdr h3{color:var(--sub);font-size:0.88rem;margin-top:4px}
+
+/* TABS */
+.tabs{display:flex;gap:3px;background:#f3f4f6;border-radius:10px;padding:3px;margin-bottom:14px}
+.tab{flex:1;padding:8px 2px;border:none;border-radius:8px;font-size:0.68rem;font-weight:700;cursor:pointer;background:transparent;color:var(--sub);transition:all 0.2s;font-family:inherit}
+.tab.active{background:var(--red);color:#fff;box-shadow:0 2px 8px rgba(198,40,40,0.3)}
+.tc{display:none}.tc.active{display:block}
+
+/* INPUTS */
+input,select,textarea{width:100%;padding:9px 11px;border:1.5px solid var(--border);border-radius:8px;margin-bottom:8px;font-size:0.88rem;font-family:inherit;background:#fff;color:var(--text);transition:border 0.2s}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--red)}
+input[readonly]{background:#f9f9f9;color:#999}
+textarea{resize:vertical;min-height:55px}
+.lbl{font-size:0.72rem;color:#444;display:block;text-align:left;margin-bottom:3px;font-weight:700}
+.req{color:var(--red)}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:0 10px}
+.amt{position:relative}.amt input{padding-left:22px!important;font-weight:700;color:var(--red)}
+.rs{position:absolute;left:9px;top:50%;transform:translateY(-50%);color:#888;font-weight:700;font-size:0.85rem;pointer-events:none}
+
+/* SECTION CARD */
+.sc{background:#fafbff;border:1px solid #e8eaf0;border-radius:10px;padding:11px 11px 3px;margin-bottom:10px;text-align:left}
+.sc-t{font-size:0.65rem;font-weight:800;color:#9ca3af;letter-spacing:1.8px;text-transform:uppercase;margin-bottom:9px}
+
+/* BILL TYPE PILLS */
+.pills{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-bottom:4px}
+.pill{padding:7px 10px;border-radius:16px;font-size:0.72rem;font-weight:700;cursor:pointer;border:2px solid #e5e7eb;background:#f9fafb;color:#555;transition:all 0.18s;user-select:none;display:flex;align-items:center;gap:4px}
+.pill:hover{border-color:var(--red);color:var(--red);transform:translateY(-1px)}
+.pill.on{color:#fff!important;border-color:transparent!important;box-shadow:0 3px 10px rgba(0,0,0,0.2);transform:translateY(-1px)}
+.p-rent{background:#1565c0}.p-hvac{background:#00838f}.p-elec{background:#f57f17}
+.p-cam{background:#558b2f}.p-mktg{background:#6a1b9a}.p-net{background:#c62828}
+.p-tax{background:#4a148c}.p-pc{background:#bf360c}.p-se{background:#37474f}
+.p-inc{background:#1b5e20}.p-cd{background:#0d47a1}.p-oth{background:#424242}
+
+/* FILE UPLOAD */
+.fup{border:2px dashed #d1d5db;border-radius:10px;padding:16px;text-align:center;cursor:pointer;position:relative;transition:all 0.2s;margin-bottom:8px;background:#fafafa}
+.fup:hover,.fup.on{border-color:var(--red);background:#fff5f5}
+.fup input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.fup-ico{font-size:1.8rem;margin-bottom:4px}
+.fup-txt{font-size:0.73rem;color:#888}.fup-txt strong{color:#333;display:block;margin-bottom:2px}
+#prevImg{width:100%;max-height:140px;object-fit:cover;border-radius:8px;display:none;margin-bottom:5px;border:2px solid #43a047}
+#prevFile{display:none;background:#e8f5e9;border-radius:6px;padding:6px 10px;font-size:0.75rem;color:#2e7d32;margin-bottom:5px;text-align:left;word-break:break-all}
+#chgFile{display:none;background:#fff3e0;color:#e65100;font-size:0.75rem;padding:6px;border-radius:6px;cursor:pointer;border:1px solid #ffcc02;margin-bottom:8px;width:100%;font-family:inherit;font-weight:700}
+
+/* ALERTS */
+.info-box{background:#e8f5e9;border-radius:8px;padding:7px 10px;font-size:0.77rem;color:var(--green);margin-bottom:8px;display:none;text-align:left;border-left:3px solid var(--green)}
+.err-box{background:#ffebee;border-radius:8px;padding:7px 10px;font-size:0.77rem;color:var(--red);margin-bottom:8px;display:none;text-align:left;border-left:3px solid var(--red)}
+.due-w{background:#ffebee;border-left:3px solid var(--red);border-radius:0 8px 8px 0;padding:5px 10px;font-size:0.73rem;color:var(--red);margin-bottom:8px;font-weight:700;display:none}
+
+/* BUTTONS */
+button{width:100%;padding:10px;border:none;border-radius:8px;font-size:0.9rem;cursor:pointer;margin-bottom:7px;font-weight:700;font-family:inherit;transition:all 0.2s}
+button:hover{opacity:0.88;transform:translateY(-1px)}
+button:disabled{opacity:0.4;cursor:not-allowed;transform:none}
+#loginBtn{background:var(--red);color:#fff;padding:12px;font-size:1rem;box-shadow:0 4px 14px rgba(198,40,40,0.35)}
+#submitBtn{background:var(--red);color:#fff;padding:13px;font-size:0.98rem;box-shadow:0 4px 14px rgba(198,40,40,0.3)}
+#clearBtn{background:#f3f4f6;color:#555;font-size:0.82rem}
+#logoutBtn{background:#9ca3af;color:#fff;font-size:0.82rem}
+.btn-grn{background:var(--green);color:#fff;font-size:0.8rem;padding:8px;margin-bottom:7px}
+.btn-blu{background:var(--blue);color:#fff;font-size:0.78rem;padding:7px;margin-bottom:9px}
+.divider{border:none;border-top:1px solid #f0f0f0;margin:8px 0 12px}
+#statusMsg{font-size:0.8rem;color:var(--sub);min-height:14px;margin-top:3px;text-align:center}
+
+/* RECORDS TABLE */
+.rt{width:100%;border-collapse:collapse;font-size:0.71rem}
+.rt th{background:var(--red);color:#fff;padding:7px 5px;text-align:left;font-size:0.68rem}
+.rt td{padding:5px 5px;border-bottom:1px solid #f0f0f0;vertical-align:top}
+.rt tr:nth-child(even) td{background:#fafafa}
+.badge{padding:2px 7px;border-radius:12px;font-size:0.62rem;font-weight:700;white-space:nowrap;display:inline-block}
+/* type badges */
+.bg-rent{background:#dbeafe;color:#1e40af}.bg-hvac{background:#cffafe;color:#0e7490}
+.bg-elec{background:#fef9c3;color:#854d0e}.bg-cam{background:#dcfce7;color:#166534}
+.bg-mktg{background:#f3e8ff;color:#6b21a8}.bg-net{background:#fee2e2;color:#991b1b}
+.bg-tax{background:#ede9fe;color:#4c1d95}.bg-pc{background:#ffedd5;color:#9a3412}
+.bg-se{background:#f1f5f9;color:#334155}.bg-inc{background:#dcfce7;color:#14532d}
+.bg-cd{background:#dbeafe;color:#1e3a8a}.bg-oth{background:#f3f4f6;color:#374151}
+/* status badges */
+.bp-paid{background:#dcfce7;color:#166534}.bp-unp{background:#fee2e2;color:#991b1b}
+.bp-par{background:#fef3c7;color:#92400e}
+.vl{color:var(--red);font-size:0.67rem;text-decoration:none;font-weight:700}
+
+/* SUMMARY */
+.sg{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
+.sk{border-radius:10px;padding:10px 6px;text-align:center}
+.sk .n{font-size:1.2rem;font-weight:800}
+.sk .l{font-size:0.58rem;font-weight:700;margin-top:2px;letter-spacing:0.5px}
+
+/* POPUP */
+#pop{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:999;justify-content:center;align-items:center}
+#pop.on{display:flex}
+#pbox{background:#fff;border-radius:18px;padding:26px 22px;text-align:center;width:290px;box-shadow:0 8px 40px rgba(0,0,0,0.2);animation:pi .28s ease}
+@keyframes pi{from{transform:scale(.7);opacity:0}to{transform:scale(1);opacity:1}}
+#pico{font-size:2.4rem;margin-bottom:6px}
+#pttl{font-size:1.05rem;font-weight:800;color:var(--red);margin-bottom:5px}
+#pmsg{font-size:0.82rem;color:#444;margin-bottom:14px;line-height:1.5;white-space:pre-line}
+#pbtn{background:var(--red);color:#fff;border:none;border-radius:8px;padding:9px 28px;font-size:0.92rem;cursor:pointer;font-weight:700;width:auto}
+
+.s-ttl{font-size:0.82rem;font-weight:800;color:var(--red);text-align:left;margin-bottom:7px}
+.empty{color:#aaa;font-size:0.82rem;padding:24px;text-align:center}
+.spin{color:#aaa;font-size:0.82rem;padding:20px;text-align:center}
+
+/* PROMPT */
+#prompt{padding:18px 0;color:#ccc;font-size:0.82rem;text-align:center}
+
+/* Category sub-label */
+.cat-note{font-size:0.68rem;color:#888;text-align:left;margin-top:-4px;margin-bottom:6px}
+</style>
+</head>
+<body>
+
+<!-- POPUP -->
+<div id="pop">
+  <div id="pbox">
+    <div id="pico">✅</div>
+    <div id="pttl">Done!</div>
+    <div id="pmsg"></div>
+    <button id="pbtn" onclick="closePop()">OK</button>
+  </div>
+</div>
+
+<div class="card">
+
+  <!-- ═══ LOGIN ═══ -->
+  <div id="loginDiv">
+    <div class="hdr">
+      <h2>🏪 PUMA Bill Manager</h2>
+      <div class="sub">Store Bill Submission System</div>
+    </div>
+    <input type="text" id="loginId" placeholder="Store ID (e.g. OPERA08)" autocapitalize="characters" autocomplete="off">
+    <input type="password" id="loginPass" placeholder="Password" autocomplete="off">
+    <button id="loginBtn" onclick="login()">Login →</button>
+    <div id="statusMsg"></div>
+  </div>
+
+  <!-- ═══ APP ═══ -->
+  <div id="appDiv" style="display:none">
+    <div class="hdr">
+      <h2>🏪 PUMA Bill Manager</h2>
+      <h3 id="wMsg"></h3>
+    </div>
+
+    <div class="tabs">
+      <button class="tab active" onclick="sw('submit')">📤 Submit</button>
+      <button class="tab"        onclick="sw('records')">📋 Records</button>
+      <button class="tab"        onclick="sw('summary')">📊 Summary</button>
+    </div>
+
+    <!-- ─── TAB: SUBMIT ─── -->
+    <div id="tab-submit" class="tc active">
+      <div id="infoBox" class="info-box"></div>
+      <div id="errBox"  class="err-box"></div>
+
+      <!-- Bill Type -->
+      <div class="sc">
+        <div class="sc-t">🧾 Bill Type चुनो <span class="req">*</span></div>
+        <div class="pills">
+          <div class="pill" id="p-rent" onclick="pick('rent')">🏠 Rent</div>
+          <div class="pill" id="p-hvac" onclick="pick('hvac')">❄️ HVAC</div>
+          <div class="pill" id="p-elec" onclick="pick('elec')">⚡ Electricity</div>
+          <div class="pill" id="p-cam"  onclick="pick('cam')">🏢 CAM</div>
+          <div class="pill" id="p-mktg" onclick="pick('mktg')">📣 Marketing</div>
+          <div class="pill" id="p-net"  onclick="pick('net')">📞 Landline/Net</div>
+          <div class="pill" id="p-tax"  onclick="pick('tax')">🧾 Tax Invoice</div>
+          <div class="pill" id="p-pc"   onclick="pick('pc')">💵 Petty Cash</div>
+          <div class="pill" id="p-se"   onclick="pick('se')">🏪 Store Expenses</div>
+          <div class="pill" id="p-inc"  onclick="pick('inc')">🎯 Incentive</div>
+          <div class="pill" id="p-cd"   onclick="pick('cd')">🏦 Cash Deposit</div>
+          <div class="pill" id="p-oth"  onclick="pick('oth')">📄 Other</div>
+        </div>
+      </div>
+
+      <div id="prompt">☝️ Upar se bill type select karo</div>
+
+      <div id="formArea" style="display:none">
+
+        <!-- File Upload -->
+        <div class="sc">
+          <div class="sc-t">📎 Bill File / Photo <span class="req">*</span></div>
+          <div class="fup" id="fupBox">
+            <input type="file" id="fileIn" accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx" onchange="handleFile(event)">
+            <img id="prevImg">
+            <div id="prevFile"></div>
+            <div id="fupPH">
+              <div class="fup-ico">📷</div>
+              <div class="fup-txt"><strong>Tap — Camera, Gallery ya File</strong>Image, PDF, Doc — Max 10MB</div>
+            </div>
+          </div>
+          <button id="chgFile" onclick="clearFile()">🔄 Change File</button>
+        </div>
+
+        <!-- Basic Details -->
+        <div class="sc">
+          <div class="sc-t">📋 Basic Details</div>
+          <label class="lbl">Store</label>
+          <input id="sName" readonly>
+
+          <div class="g2">
+            <div>
+              <label class="lbl">Bill Date <span class="req">*</span></label>
+              <input type="date" id="bDate" onchange="onDC()">
+            </div>
+            <div>
+              <label class="lbl">Month <span class="req">*</span></label>
+              <select id="bMonth">
+                <option value="">Month</option>
+                <option>January</option><option>February</option><option>March</option>
+                <option>April</option><option>May</option><option>June</option>
+                <option>July</option><option>August</option><option>September</option>
+                <option>October</option><option>November</option><option>December</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="g2">
+            <div>
+              <label class="lbl">Year <span class="req">*</span></label>
+              <select id="bYear"></select>
+            </div>
+            <div>
+              <label class="lbl">Amount ₹ <span class="req">*</span></label>
+              <div class="amt"><span class="rs">₹</span>
+                <input type="number" id="bAmt" placeholder="0.00" inputmode="decimal" step="0.01">
+              </div>
+            </div>
+          </div>
+
+          <label class="lbl">Invoice / Bill No.</label>
+          <input id="invNo" placeholder="e.g. INV-2026-0034">
+          <label class="lbl">Vendor / Supplier</label>
+          <input id="vendr" placeholder="e.g. BSES Rajdhani">
+          <label class="lbl">Approved By</label>
+          <input id="appBy" placeholder="Manager / approver name">
+        </div>
+
+        <!-- Due & Payment -->
+        <div class="sc">
+          <div class="sc-t">📅 Due Date & Payment</div>
+          <div class="g2">
+            <div>
+              <label class="lbl">Due Date</label>
+              <input type="date" id="dDate" onchange="chkDue()">
+            </div>
+            <div>
+              <label class="lbl">Status <span class="req">*</span></label>
+              <select id="pStat" onchange="onPS()">
+                <option value="">— Select —</option>
+                <option value="Unpaid">❌ Unpaid</option>
+                <option value="Paid">✅ Paid</option>
+                <option value="Partial">⚠️ Partial</option>
+              </select>
+            </div>
+          </div>
+          <div class="due-w" id="dueW">⚠️ Due date nikal gayi!</div>
+          <div id="pFlds" style="display:none">
+            <div class="g2">
+              <div>
+                <label class="lbl">Paid ₹</label>
+                <div class="amt"><span class="rs">₹</span>
+                  <input type="number" id="aPaid" placeholder="0.00" inputmode="decimal" step="0.01">
+                </div>
+              </div>
+              <div>
+                <label class="lbl">Pay Date</label>
+                <input type="date" id="pDate">
+              </div>
+            </div>
+            <label class="lbl">Payment Mode</label>
+            <select id="pMode">
+              <option value="">— Select —</option>
+              <option>Cash</option><option>Cheque</option>
+              <option>NEFT / RTGS</option><option>UPI</option>
+              <option>Credit Card</option><option>Debit Card</option>
+            </select>
+            <label class="lbl">Txn / Cheque Ref No.</label>
+            <input id="txnR" placeholder="UTR / Cheque number">
+          </div>
+        </div>
+
+        <!-- Dynamic Area (bill-type specific) -->
+        <div id="dynArea"></div>
+
+        <!-- Remarks -->
+        <div class="sc">
+          <div class="sc-t">💬 Remarks</div>
+          <textarea id="rmks" placeholder="Extra notes..."></textarea>
+        </div>
+
+        <button id="submitBtn" onclick="doSubmit()">📤 Submit Bill</button>
+        <button id="clearBtn"  onclick="clearForm()">Clear Form</button>
+        <hr class="divider">
+        <button id="logoutBtn" onclick="logout()">Logout</button>
+      </div><!-- /formArea -->
+    </div><!-- /tab-submit -->
+
+    <!-- ─── TAB: RECORDS ─── -->
+    <div id="tab-records" class="tc">
+      <div class="s-ttl">📋 My Bill Records</div>
+      <button class="btn-grn" onclick="expCSV()">⬇️ Export CSV</button>
+      <button class="btn-blu" onclick="loadRecs(true)">🔄 Refresh</button>
+      <div id="recWrap"><div class="spin">Loading…</div></div>
+    </div>
+
+    <!-- ─── TAB: SUMMARY ─── -->
+    <div id="tab-summary" class="tc">
+      <div class="s-ttl">📊 Summary</div>
+      <button class="btn-blu" onclick="buildSum()">🔄 Refresh</button>
+      <div class="sg" id="sg"></div>
+      <div class="s-ttl" style="margin-top:4px">💸 Unpaid / Partial</div>
+      <div id="unpWrap"></div>
+      <div class="s-ttl" style="margin-top:10px">📅 By Bill Type</div>
+      <div id="typWrap"></div>
+    </div>
+
+  </div><!-- /appDiv -->
+</div><!-- /card -->
+
+<script>
+// ══════════════════════════════════
+// CONFIG
+// ══════════════════════════════════
+const SCRIPT_URL   = "https://script.google.com/macros/s/AKfycby4P649xFZnk2akWNa-0xA0pJwTXiE_vj61vBhz3FMfkgB4WckIqmulRUVFqQEbEP9X/exec";
+const CLOUD_NAME   = "drjgoxwfu";
+const UPLOAD_PRESET= "puma_bills";
+
+// ══════════════════════════════════
+// BILL TYPE CONFIG
+// ══════════════════════════════════
+const PC_CATS = ["Local Conveyance","Refreshments","Office Supplies","Cleaning Supplies","Printing","Stationery","Courier","Repair","Staff Welfare","Maintenance","Miscellaneous","Other"];
+const SE_CATS = ["Courier","Cleaning Supplies","Office Supplies","Stationery","Maintenance","Printing","Staff Welfare","Repair","Other"];
+
+const BT = {
+  rent:{ label:"Rent",             icon:"🏠", cls:"p-rent", bdg:"bg-rent", folder:"Rent",
+    fields:[
+      {id:"landlord",  lbl:"Landlord Name",            type:"text",   ph:"Full name"},
+      {id:"rentPeriod",lbl:"Rental Period",             type:"text",   ph:"e.g. April 2026"},
+      {id:"agreeNo",   lbl:"Agreement No. (Optional)",  type:"text",   ph:"Ref number"},
+      {id:"escPct",    lbl:"Escalation % (if any)",     type:"number", ph:"e.g. 5"}
+    ]},
+  hvac:{ label:"HVAC",             icon:"❄️", cls:"p-hvac", bdg:"bg-hvac", folder:"HVAC",
+    fields:[
+      {id:"hvacCo",   lbl:"Contractor / Company",      type:"text",   ph:"Contractor name"},
+      {id:"svcType",  lbl:"Service Type",               type:"select", opts:["","AMC","Repair","Installation","Maintenance","Other"]},
+      {id:"unitCnt",  lbl:"Units Serviced",             type:"number", ph:"e.g. 4"},
+      {id:"svcDate",  lbl:"Service Date",               type:"date"},
+      {id:"nxtSvc",   lbl:"Next Service Due",           type:"date"}
+    ]},
+  elec:{ label:"Electricity",      icon:"⚡", cls:"p-elec", bdg:"bg-elec", folder:"Electricity",
+    fields:[
+      {id:"consNo",   lbl:"Consumer No.",               type:"text",   ph:"Consumer number"},
+      {id:"board",    lbl:"Board / Utility Name",       type:"text",   ph:"e.g. BSES, Tata Power"},
+      {id:"units",    lbl:"Units Consumed (kWh)",       type:"number", ph:"e.g. 1200"},
+      {id:"rdFrom",   lbl:"Meter Reading — From",       type:"number", ph:"Previous"},
+      {id:"rdTo",     lbl:"Meter Reading — To",         type:"number", ph:"Current"},
+      {id:"tariff",   lbl:"Tariff Rate ₹/unit",         type:"number", ph:"e.g. 8.5"}
+    ]},
+  cam:{ label:"CAM",               icon:"🏢", cls:"p-cam",  bdg:"bg-cam",  folder:"CAM",
+    fields:[
+      {id:"mallNm",   lbl:"Mall / Property Name",       type:"text",   ph:"e.g. DLF Promenade"},
+      {id:"camType",  lbl:"CAM Type",                   type:"select", opts:["","Monthly","Quarterly","Annual","Special Assessment","Other"]},
+      {id:"camPrd",   lbl:"CAM Period",                 type:"text",   ph:"e.g. Q1 2026"},
+      {id:"baseCAM",  lbl:"Base CAM Amount ₹",          type:"number", ph:"Base amount"},
+      {id:"gstAmt",   lbl:"GST / Tax Amount ₹",         type:"number", ph:"Tax charged"}
+    ]},
+  mktg:{ label:"Marketing",        icon:"📣", cls:"p-mktg", bdg:"bg-mktg", folder:"Marketing",
+    fields:[
+      {id:"campaign", lbl:"Campaign Name",              type:"text",   ph:"e.g. Diwali Campaign"},
+      {id:"mktgType", lbl:"Marketing Type",             type:"select", opts:["","Mall Branding","Digital Ads","Flyers","Events","Social Media","Other"]},
+      {id:"agency",   lbl:"Agency / Vendor",            type:"text",   ph:"Agency name"},
+      {id:"campPrd",  lbl:"Campaign Period",            type:"text",   ph:"e.g. 01–15 Apr 2026"},
+      {id:"budget",   lbl:"Approved Budget ₹",          type:"number", ph:"Sanctioned amount"}
+    ]},
+  net:{ label:"Landline & Net",    icon:"📞", cls:"p-net",  bdg:"bg-net",  folder:"Landline--Net",
+    fields:[
+      {id:"provider", lbl:"Service Provider",           type:"text",   ph:"e.g. Airtel, Jio, BSNL"},
+      {id:"acctNo",   lbl:"Account / Connection No.",   type:"text",   ph:"Account number"},
+      {id:"svcKind",  lbl:"Service Type",               type:"select", opts:["","Landline Only","Internet Only","Landline + Internet","Leased Line","Other"]},
+      {id:"plan",     lbl:"Plan / Package",             type:"text",   ph:"e.g. 100 Mbps Unlimited"},
+      {id:"billPrd",  lbl:"Billing Period",             type:"text",   ph:"e.g. April 2026"}
+    ]},
+  tax:{ label:"Tax Invoice",       icon:"🧾", cls:"p-tax",  bdg:"bg-tax",  folder:"Tax-Invoice",
+    fields:[
+      {id:"gstin",    lbl:"Supplier GSTIN",             type:"text",   ph:"e.g. 07AAAAA0000A1Z5"},
+      {id:"taxInvNo", lbl:"Tax Invoice No.",            type:"text",   ph:"e.g. TXINV-2026-001"},
+      {id:"taxInvDt", lbl:"Invoice Date",               type:"date"},
+      {id:"hsnCode",  lbl:"HSN / SAC Code",             type:"text",   ph:"e.g. 9972"},
+      {id:"taxType",  lbl:"Tax Type",                   type:"select", opts:["","IGST","CGST + SGST","GST 5%","GST 12%","GST 18%","GST 28%","Other"]},
+      {id:"taxAmt",   lbl:"Tax Amount ₹",               type:"number", ph:"Total tax charged"},
+      {id:"baseAmt",  lbl:"Base Amount (before tax) ₹", type:"number", ph:"Amount before tax"}
+    ]},
+  pc:{ label:"Petty Cash",         icon:"💵", cls:"p-pc",   bdg:"bg-pc",   folder:"Petty-Cash",
+    special:"pc",
+    fields:[
+      {id:"pcCat",   lbl:"Category <span class='req'>*</span>", type:"select", opts:[""].concat(PC_CATS)},
+      {id:"pcItem",  lbl:"Item / Description",          type:"text",   ph:"What was purchased/paid"},
+      {id:"pcPaidTo",lbl:"Paid To (Person/Vendor)",     type:"text",   ph:"Name"},
+      {id:"pcVoucher",lbl:"Voucher No.",                type:"text",   ph:"Petty cash voucher no."}
+    ]},
+  se:{ label:"Store Expenses",     icon:"🏪", cls:"p-se",   bdg:"bg-se",   folder:"Store-Expenses",
+    special:"se",
+    fields:[
+      {id:"expCat",    lbl:"Category <span class='req'>*</span>", type:"select", opts:[""].concat(SE_CATS)},
+      {id:"expItem",   lbl:"Item / Description",         type:"text",   ph:"What was purchased"},
+      {id:"expQty",    lbl:"Quantity",                   type:"number", ph:"e.g. 2"},
+      {id:"expUnit",   lbl:"Unit Price ₹",               type:"number", ph:"Price per unit"}
+    ]},
+  inc:{ label:"Incentive",         icon:"🎯", cls:"p-inc",  bdg:"bg-inc",  folder:"Incentive",
+    fields:[
+      {id:"empName",  lbl:"Employee Name <span class='req'>*</span>", type:"text", ph:"Full name"},
+      {id:"empDept",  lbl:"Department",                 type:"select", opts:["","Sales","Operations","Store Manager","Visual Merchandising","Cashier","Security","Other"]},
+      {id:"incType",  lbl:"Incentive Type",             type:"select", opts:["","Sales Incentive","Performance Bonus","Festival Bonus","Target Achievement","Other"]},
+      {id:"incPeriod",lbl:"Period (Month/Quarter)",     type:"text",   ph:"e.g. Q1 2026 / April 2026"},
+      {id:"incAppBy", lbl:"Approved By",                type:"text",   ph:"Approver name / designation"}
+    ]},
+  cd:{ label:"Cash Deposit",       icon:"🏦", cls:"p-cd",   bdg:"bg-cd",   folder:"Cash-Deposit",
+    fields:[
+      {id:"bankName",  lbl:"Bank Name",                 type:"text",   ph:"e.g. Kotak, SBI, HDFC"},
+      {id:"branchNm",  lbl:"Branch Name",               type:"text",   ph:"Branch"},
+      {id:"cdAcctNo",  lbl:"Account No.",               type:"text",   ph:"Account number"},
+      {id:"slipNo",    lbl:"Deposit Slip No.",          type:"text",   ph:"Slip reference"},
+      {id:"depBy",     lbl:"Deposited By",              type:"text",   ph:"Person who deposited"}
+    ]},
+  oth:{ label:"Other",             icon:"📄", cls:"p-oth",  bdg:"bg-oth",  folder:"Other",
+    fields:[
+      {id:"expType",  lbl:"Expense Type / Category",   type:"text",   ph:"e.g. Stationery, Cleaning"},
+      {id:"purpose",  lbl:"Purpose / Description",     type:"text",   ph:"Brief description"}
+    ]}
+};
+
+const ALL_KEYS = Object.keys(BT);
+
+// ══════════════════════════════════
+// STATE
+// ══════════════════════════════════
+let store = null, recs = [], fileBlob = null, fileData = null, fileName = "", fileMime = "", sel = null;
+
+// ══════════════════════════════════
+// API CALL
+// ══════════════════════════════════
+function callScript(action, data, cb) {
+  fetch(SCRIPT_URL, {
+    method:"POST",
+    body: JSON.stringify(Object.assign({action}, data)),
+    headers:{"Content-Type":"text/plain"}
+  })
+  .then(r=>r.json()).then(cb)
+  .catch(err=>{ dis(false); setSt("❌ Network error: "+err.message); });
+}
+
+// ══════════════════════════════════
+// HELPERS
+// ══════════════════════════════════
+function setSt(m){ document.getElementById("statusMsg").textContent = m; }
+function showI(m){ const b=document.getElementById("infoBox"); b.textContent=m; b.style.display=m?"block":"none"; }
+function showE(m){ const b=document.getElementById("errBox");  b.textContent=m; b.style.display=m?"block":"none"; }
+function dis(d){
+  ["loginBtn","submitBtn","clearBtn"].forEach(id=>{
+    const e=document.getElementById(id); if(e) e.disabled=d;
+  });
+}
+function td(d){ return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
+function showPop(ic,ti,msg){ document.getElementById("pico").textContent=ic; document.getElementById("pttl").textContent=ti; document.getElementById("pmsg").textContent=msg; document.getElementById("pop").classList.add("on"); }
+function closePop(){ document.getElementById("pop").classList.remove("on"); }
+function fmtN(n){ if(n>=100000) return (n/100000).toFixed(1)+"L"; if(n>=1000) return (n/1000).toFixed(1)+"K"; return n.toFixed(0); }
+function badgeCls(type){
+  const map={
+    "Rent":"bg-rent","HVAC":"bg-hvac","Electricity":"bg-elec","CAM":"bg-cam",
+    "Marketing":"bg-mktg","Landline & Net":"bg-net","Tax Invoice":"bg-tax",
+    "Petty Cash":"bg-pc","Store Expenses":"bg-se","Incentive":"bg-inc",
+    "Cash Deposit":"bg-cd","Other":"bg-oth"
+  };
+  return map[type]||"bg-oth";
+}
+function statusCls(s){
+  if(!s) return "bp-unp";
+  const l=s.toLowerCase();
+  if(l==="paid") return "bp-paid";
+  if(l==="partial") return "bp-par";
+  return "bp-unp";
+}
+
+// ══════════════════════════════════
+// LOGIN
+// ══════════════════════════════════
+function login(){
+  const id = document.getElementById("loginId").value.trim().toUpperCase();
+  const pw = document.getElementById("loginPass").value.trim();
+  if(!id||!pw){ setSt("⚠️ Store ID aur Password bharo."); return; }
+  setSt("Logging in…"); dis(true);
+  callScript("login",{storeId:id,password:pw},function(res){
+    dis(false);
+    if(res.success){
+      store = res.store;
+      document.getElementById("loginDiv").style.display="none";
+      document.getElementById("appDiv").style.display="block";
+      document.getElementById("wMsg").textContent = "Welcome, "+store.name+" 👋";
+      document.getElementById("sName").value = store.name;
+      setSt(""); initYrs(); setDts(); loadRecs(false);
+    } else {
+      setSt("❌ "+(res.message||"Invalid credentials."));
+    }
+  });
+}
+document.getElementById("loginPass").addEventListener("keydown", e=>{ if(e.key==="Enter") login(); });
+
+function initYrs(){
+  const el=document.getElementById("bYear"), y=new Date().getFullYear();
+  el.innerHTML="";
+  for(let i=y;i>=y-3;i--) el.innerHTML+=`<option value="${i}">${i}</option>`;
+}
+function setDts(){
+  const now=new Date();
+  document.getElementById("bDate").value=td(now);
+  document.getElementById("pDate").value=td(now);
+  const mn=["January","February","March","April","May","June","July","August","September","October","November","December"];
+  document.getElementById("bMonth").value=mn[now.getMonth()];
+  document.getElementById("bYear").value=String(now.getFullYear());
+}
+
+// ══════════════════════════════════
+// TABS
+// ══════════════════════════════════
+function sw(t){
+  ["submit","records","summary"].forEach((n,i)=>{
+    document.querySelectorAll(".tab")[i].classList.toggle("active",n===t);
+    document.getElementById("tab-"+n).classList.toggle("active",n===t);
+  });
+  if(t==="records") loadRecs(false);
+  if(t==="summary") buildSum();
+}
+
+// ══════════════════════════════════
+// BILL TYPE PICK
+// ══════════════════════════════════
+function pick(k){
+  sel=k;
+  ALL_KEYS.forEach(b=>{
+    const p=document.getElementById("p-"+b);
+    p.className="pill";
+  });
+  const cfg=BT[k];
+  document.getElementById("p-"+k).className="pill on "+cfg.cls;
+  document.getElementById("formArea").style.display="block";
+  document.getElementById("prompt").style.display="none";
+  buildDyn(k);
+  showI("✅ "+cfg.icon+" "+cfg.label+" selected!");
+  showE("");
+}
+
+function buildDyn(k){
+  const w=document.getElementById("dynArea");
+  const cfg=BT[k];
+  if(!cfg.fields||!cfg.fields.length){ w.innerHTML=""; return; }
+  let h=`<div class="sc"><div class="sc-t">${cfg.icon} ${cfg.label} — Details</div>`;
+  cfg.fields.forEach(f=>{
+    h+=`<div><label class="lbl">${f.lbl}</label>`;
+    if(f.type==="select"){
+      h+=`<select id="d_${f.id}">`;
+      (f.opts||[]).forEach(o=>h+=`<option value="${o}">${o||"— Select —"}</option>`);
+      h+=`</select>`;
+    } else {
+      h+=`<input type="${f.type}" id="d_${f.id}" placeholder="${f.ph||""}" ${f.type==="number"?"inputmode='decimal' step='0.01'":""}>`;
+    }
+    h+=`</div>`;
+  });
+  w.innerHTML=h+"</div>";
+}
+
+// ══════════════════════════════════
+// DATE HELPERS
+// ══════════════════════════════════
+function onDC(){
+  const v=document.getElementById("bDate").value;
+  if(!v) return;
+  const d=new Date(v+"T00:00:00");
+  const mn=["January","February","March","April","May","June","July","August","September","October","November","December"];
+  document.getElementById("bMonth").value=mn[d.getMonth()];
+  document.getElementById("bYear").value=String(d.getFullYear());
+  const due=new Date(d); due.setDate(due.getDate()+15);
+  document.getElementById("dDate").value=td(due);
+  chkDue();
+}
+function chkDue(){
+  const v=document.getElementById("dDate").value;
+  document.getElementById("dueW").style.display=(v&&new Date(v+"T00:00:00")<new Date())?"block":"none";
+}
+function onPS(){
+  const v=document.getElementById("pStat").value;
+  document.getElementById("pFlds").style.display=(v==="Paid"||v==="Partial")?"block":"none";
+}
+
+// ══════════════════════════════════
+// FILE HANDLING — Any file type
+// ══════════════════════════════════
+function handleFile(e){
+  const file=e.target.files[0];
+  if(!file) return;
+  if(file.size>10*1024*1024){ showE("❌ File too large. Max 10MB."); return; }
+  showE("");
+  fileName=file.name;
+  fileMime=file.type||"application/octet-stream";
+
+  const reader=new FileReader();
+  reader.onload=function(ev){
+    fileData=ev.target.result.split(",")[1]; // base64
+
+    const isImg=fileMime.startsWith("image/");
+    if(isImg){
+      // Compress image
+      const img=new Image();
+      img.onload=function(){
+        const canvas=document.createElement("canvas");
+        let w=img.width,h=img.height;
+        if(w>1400){h=Math.round(h*1400/w);w=1400;}
+        canvas.width=w; canvas.height=h;
+        canvas.getContext("2d").drawImage(img,0,0,w,h);
+        canvas.toBlob(function(b){
+          fileBlob=b;
+          const fr2=new FileReader();
+          fr2.onload=function(e2){ fileData=e2.target.result.split(",")[1]; };
+          fr2.readAsDataURL(b);
+          document.getElementById("prevImg").src=canvas.toDataURL("image/jpeg",0.85);
+          document.getElementById("prevImg").style.display="block";
+          document.getElementById("prevFile").style.display="none";
+          document.getElementById("fupPH").style.display="none";
+          document.getElementById("chgFile").style.display="block";
+          document.getElementById("fupBox").classList.add("on");
+          showI("✅ Photo ready!");
+        },"image/jpeg",0.85);
+        fileMime="image/jpeg";
+        fileName=fileName.replace(/\.[^.]+$/,".jpg");
+      };
+      img.src=ev.target.result;
+    } else {
+      // Non-image file (PDF, doc, etc.)
+      fileBlob=file;
+      document.getElementById("prevImg").style.display="none";
+      document.getElementById("prevFile").textContent="📄 "+file.name+" ("+Math.round(file.size/1024)+" KB)";
+      document.getElementById("prevFile").style.display="block";
+      document.getElementById("fupPH").style.display="none";
+      document.getElementById("chgFile").style.display="block";
+      document.getElementById("fupBox").classList.add("on");
+      showI("✅ File ready: "+file.name);
+    }
+  };
+  reader.readAsDataURL(file);
+}
+
+function clearFile(){
+  fileBlob=null; fileData=null; fileName=""; fileMime="";
+  document.getElementById("fileIn").value="";
+  document.getElementById("prevImg").style.display="none";
+  document.getElementById("prevImg").src="";
+  document.getElementById("prevFile").style.display="none";
+  document.getElementById("prevFile").textContent="";
+  document.getElementById("fupPH").style.display="block";
+  document.getElementById("chgFile").style.display="none";
+  document.getElementById("fupBox").classList.remove("on");
+}
+
+// ══════════════════════════════════
+// CLOUDINARY DIRECT UPLOAD
+// ══════════════════════════════════
+function uploadToCloudinary(base64, mimeType, publicId, folder, callback){
+  const url=`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/auto/upload`;
+  const formData=new FormData();
+  formData.append("file","data:"+mimeType+";base64,"+base64);
+  formData.append("upload_preset", UPLOAD_PRESET);
+  formData.append("public_id", publicId);
+  formData.append("folder", folder);
+
+  fetch(url,{method:"POST",body:formData})
+  .then(r=>r.json())
+  .then(res=>{
+    if(res.secure_url) callback(null, res.secure_url, res.original_filename||fileName);
+    else callback("Cloudinary error: "+(res.error&&res.error.message||JSON.stringify(res)));
+  })
+  .catch(err=>callback("Upload failed: "+err.message));
+}
+
+// ══════════════════════════════════
+// SUBMIT
+// ══════════════════════════════════
+function doSubmit(){
+  if(!sel)                           { showE("❌ Bill type select karo.");return; }
+  if(!fileData)                      { showE("❌ File/Photo attach karo.");return; }
+  if(!document.getElementById("bDate").value){ showE("❌ Bill date bharo.");return; }
+  if(!document.getElementById("bAmt").value) { showE("❌ Amount bharo.");return; }
+  if(!document.getElementById("pStat").value){ showE("❌ Payment status select karo.");return; }
+  showE("");
+
+  const cfg=BT[sel];
+
+  // Collect dynamic fields as individual key-value + JSON
+  const spec={};
+  (cfg.fields||[]).forEach(f=>{
+    const el=document.getElementById("d_"+f.id);
+    if(el) spec[f.id]=el.value;
+  });
+
+  const uploadId="BILL-"+store.id+"-"+Date.now();
+  const dateObj=new Date(document.getElementById("bDate").value+"T00:00:00");
+  const y=dateObj.getFullYear();
+  const mNum=String(dateObj.getMonth()+1).padStart(2,"0");
+  const mNms=["January","February","March","April","May","June","July","August","September","October","November","December"];
+  const mNm=mNms[dateObj.getMonth()];
+  const folder=`puma-bills/${y}/${mNum}-${mNm}/${store.id}/${cfg.folder}`;
+
+  dis(true); setSt("⏳ Uploading file…");
+
+  uploadToCloudinary(fileData, fileMime, uploadId, folder, function(err, fileUrl, fName){
+    if(err){ dis(false); setSt(""); showE("❌ "+err); return; }
+    setSt("⏳ Saving to sheet…");
+
+    callScript("uploadBill",{
+      storeId:        store.id,
+      storeName:      store.name,
+      billType:       cfg.label,
+      billDate:       document.getElementById("bDate").value,
+      billMonth:      document.getElementById("bMonth").value,
+      billYear:       document.getElementById("bYear").value,
+      amount:         parseFloat(document.getElementById("bAmt").value)||0,
+      invoiceNo:      document.getElementById("invNo").value,
+      vendorName:     document.getElementById("vendr").value,
+      approvedBy:     document.getElementById("appBy").value,
+      dueDate:        document.getElementById("dDate").value,
+      paymentStatus:  document.getElementById("pStat").value,
+      amountPaid:     parseFloat(document.getElementById("aPaid").value)||0,
+      paymentDate:    document.getElementById("pDate").value,
+      paymentMode:    document.getElementById("pMode").value,
+      txnRef:         document.getElementById("txnR").value,
+      remarks:        document.getElementById("rmks").value,
+      // Flat specific fields
+      pcCategory:     spec.pcCat||"",
+      pcItem:         spec.pcItem||"",
+      pcPaidTo:       spec.pcPaidTo||"",
+      pcVoucher:      spec.pcVoucher||"",
+      seCategory:     spec.expCat||"",
+      seItem:         spec.expItem||"",
+      seQty:          spec.expQty||"",
+      seUnitPrice:    spec.expUnit||"",
+      empName:        spec.empName||"",
+      empDept:        spec.empDept||"",
+      incType:        spec.incType||"",
+      incPeriod:      spec.incPeriod||"",
+      incApprovedBy:  spec.incAppBy||"",
+      landlord:       spec.landlord||"",
+      rentPeriod:     spec.rentPeriod||"",
+      agreeNo:        spec.agreeNo||"",
+      escalation:     spec.escPct||"",
+      hvacContractor: spec.hvacCo||"",
+      hvacSvcType:    spec.svcType||"",
+      hvacUnits:      spec.unitCnt||"",
+      hvacSvcDate:    spec.svcDate||"",
+      hvacNextSvc:    spec.nxtSvc||"",
+      consumerNo:     spec.consNo||"",
+      elecBoard:      spec.board||"",
+      elecUnits:      spec.units||"",
+      meterFrom:      spec.rdFrom||"",
+      meterTo:        spec.rdTo||"",
+      tariff:         spec.tariff||"",
+      mallName:       spec.mallNm||"",
+      camType:        spec.camType||"",
+      camPeriod:      spec.camPrd||"",
+      camBase:        spec.baseCAM||"",
+      camGST:         spec.gstAmt||"",
+      campaign:       spec.campaign||"",
+      mktgType:       spec.mktgType||"",
+      mktgAgency:     spec.agency||"",
+      campPeriod:     spec.campPrd||"",
+      mktgBudget:     spec.budget||"",
+      netProvider:    spec.provider||"",
+      netAcct:        spec.acctNo||"",
+      netSvcKind:     spec.svcKind||"",
+      netPlan:        spec.plan||"",
+      netBillPrd:     spec.billPrd||"",
+      gstin:          spec.gstin||"",
+      taxInvNo:       spec.taxInvNo||"",
+      taxInvDate:     spec.taxInvDt||"",
+      hsnCode:        spec.hsnCode||"",
+      taxType:        spec.taxType||"",
+      taxAmt:         spec.taxAmt||"",
+      taxBase:        spec.baseAmt||"",
+      bankName:       spec.bankName||"",
+      branchName:     spec.branchNm||"",
+      cdAcctNo:       spec.cdAcctNo||"",
+      depositSlip:    spec.slipNo||"",
+      depositedBy:    spec.depBy||"",
+      otherExpType:   spec.expType||"",
+      otherPurpose:   spec.purpose||"",
+      fileUrl:        fileUrl,
+      fileName:       fName||fileName,
+      fileType:       fileMime
+    }, function(res){
+      dis(false); setSt("");
+      if(res.success){
+        recs=[];
+        showPop("✅","Bill Submitted!",
+          cfg.icon+" "+cfg.label+"\n₹"+parseFloat(document.getElementById("bAmt").value).toLocaleString("en-IN")+"\n"+document.getElementById("pStat").value
+        );
+        clearForm();
+      } else {
+        showE("❌ "+(res.message||"Submit failed."));
+      }
+    });
+  });
+}
+
+// ══════════════════════════════════
+// CLEAR FORM
+// ══════════════════════════════════
+function clearForm(){
+  clearFile(); sel=null;
+  ALL_KEYS.forEach(k=>{ document.getElementById("p-"+k).className="pill"; });
+  document.getElementById("formArea").style.display="none";
+  document.getElementById("prompt").style.display="block";
+  document.getElementById("dynArea").innerHTML="";
+  document.getElementById("pFlds").style.display="none";
+  document.getElementById("dueW").style.display="none";
+  ["bAmt","invNo","vendr","appBy","dDate","aPaid","txnR","rmks"].forEach(id=>{
+    const el=document.getElementById(id); if(el) el.value="";
+  });
+  document.getElementById("pStat").value="";
+  document.getElementById("pMode").value="";
+  setDts(); showI(""); showE("");
+}
+
+// ══════════════════════════════════
+// RECORDS
+// ══════════════════════════════════
+function loadRecs(force){
+  if(recs.length>0&&!force){ renderRecs(); return; }
+  document.getElementById("recWrap").innerHTML="<div class='spin'>Loading…</div>";
+  callScript("getBillRecords",{storeId:store.id},function(res){
+    recs=(res.records||[]).sort((a,b)=>new Date(b.billDate)-new Date(a.billDate));
+    renderRecs();
+  });
+}
+
+function renderRecs(){
+  const w=document.getElementById("recWrap");
+  if(!recs.length){ w.innerHTML="<div class='empty'>Koi bill submit nahi hua abhi tak.</div>"; return; }
+  let h=`<table class="rt"><thead><tr><th>Date</th><th>Type</th><th>₹</th><th>Status</th><th>File</th></tr></thead><tbody>`;
+  recs.forEach(r=>{
+    const bc=badgeCls(r.billType);
+    const sc=statusCls(r.paymentStatus);
+    h+=`<tr>
+      <td>${r.billDate}<br><span style="color:#ccc;font-size:0.6rem">${r.billMonth||""} ${r.billYear||""}</span></td>
+      <td><span class="badge ${bc}">${r.billType}</span></td>
+      <td style="font-weight:700;color:var(--red)">₹${Number(r.amount).toLocaleString("en-IN")}</td>
+      <td><span class="badge ${sc}">${r.paymentStatus||"—"}</span></td>
+      <td>${r.fileUrl?`<a href="${r.fileUrl}" target="_blank" class="vl">View</a>`:"—"}</td>
+    </tr>`;
+  });
+  w.innerHTML=h+"</tbody></table>";
+}
+
+// ══════════════════════════════════
+// SUMMARY
+// ══════════════════════════════════
+function buildSum(){
+  if(!recs.length){ loadRecs(true); return; }
+  const now=new Date();
+  const mn=["January","February","March","April","May","June","July","August","September","October","November","December"];
+  const thisM=recs.filter(r=>r.billMonth===mn[now.getMonth()]&&String(r.billYear)===String(now.getFullYear()));
+  const tot=recs.reduce((s,r)=>s+(parseFloat(r.amount)||0),0);
+  const unp=recs.filter(r=>r.paymentStatus==="Unpaid");
+  const par=recs.filter(r=>r.paymentStatus==="Partial");
+
+  document.getElementById("sg").innerHTML=`
+    <div class="sk" style="background:#dbeafe;color:#1e40af"><div class="n">${recs.length}</div><div class="l">TOTAL BILLS</div></div>
+    <div class="sk" style="background:#dcfce7;color:#166534"><div class="n">${thisM.length}</div><div class="l">THIS MONTH</div></div>
+    <div class="sk" style="background:#fef3c7;color:#92400e"><div class="n">₹${fmtN(tot)}</div><div class="l">TOTAL AMOUNT</div></div>
+    <div class="sk" style="background:#fee2e2;color:#991b1b"><div class="n">${unp.length+par.length}</div><div class="l">UNPAID/PARTIAL</div></div>`;
+
+  const uw=document.getElementById("unpWrap");
+  const ua=[...unp,...par];
+  if(!ua.length){ uw.innerHTML="<div class='empty' style='padding:8px'>✅ Sab bills paid!</div>"; }
+  else{
+    let h=`<table class="rt"><thead><tr><th>Type</th><th>Date</th><th>₹</th><th>Status</th></tr></thead><tbody>`;
+    ua.forEach(r=>{
+      const sc=statusCls(r.paymentStatus);
+      h+=`<tr><td>${r.billType}</td><td>${r.billDate}</td>
+          <td style="font-weight:700;color:var(--red)">₹${Number(r.amount).toLocaleString("en-IN")}</td>
+          <td><span class="badge ${sc}">${r.paymentStatus}</span></td></tr>`;
+    });
+    uw.innerHTML=h+"</tbody></table>";
+  }
+
+  const tm={};
+  recs.forEach(r=>{ if(!tm[r.billType]) tm[r.billType]={c:0,a:0}; tm[r.billType].c++; tm[r.billType].a+=parseFloat(r.amount)||0; });
+  let h=`<table class="rt"><thead><tr><th>Bill Type</th><th>Count</th><th>Total ₹</th></tr></thead><tbody>`;
+  Object.entries(tm).sort((a,b)=>b[1].a-a[1].a).forEach(([t,v])=>{
+    h+=`<tr><td>${t}</td><td>${v.c}</td><td style="font-weight:700">₹${v.a.toLocaleString("en-IN")}</td></tr>`;
+  });
+  document.getElementById("typWrap").innerHTML=h+"</tbody></table>";
+}
+
+// ══════════════════════════════════
+// EXPORT CSV
+// ══════════════════════════════════
+function expCSV(){
+  callScript("exportBills",{storeId:store.id},function(res){
+    if(res.csv){
+      const b=new Blob([res.csv],{type:"text/csv;charset=utf-8;"});
+      const u=URL.createObjectURL(b);
+      const a=document.createElement("a");
+      a.href=u; a.download=store.name.replace(/\s/g,"_")+"_Bills_"+td(new Date())+".csv"; a.click();
+      URL.revokeObjectURL(u);
+    } else {
+      showPop("⚠️","No Data","Koi record nahi.");
+    }
+  });
+}
+
+// ══════════════════════════════════
+// LOGOUT
+// ══════════════════════════════════
+function logout(){
+  store=null; recs=[]; fileBlob=null; fileData=null; fileName=""; fileMime=""; sel=null;
+  document.getElementById("appDiv").style.display="none";
+  document.getElementById("loginDiv").style.display="block";
+  document.getElementById("loginId").value="";
+  document.getElementById("loginPass").value="";
+  setSt(""); showI(""); showE("");
+}
+</script>
+</body>
+</html>

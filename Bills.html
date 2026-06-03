@@ -55,6 +55,12 @@ textarea{resize:vertical;min-height:55px}
 .info-box{background:#e8f5e9;border-radius:8px;padding:7px 10px;font-size:0.77rem;color:var(--green);margin-bottom:8px;display:none;text-align:left;border-left:3px solid var(--green)}
 .err-box{background:#ffebee;border-radius:8px;padding:7px 10px;font-size:0.77rem;color:var(--red);margin-bottom:8px;display:none;text-align:left;border-left:3px solid var(--red)}
 .due-w{background:#ffebee;border-left:3px solid var(--red);border-radius:0 8px 8px 0;padding:5px 10px;font-size:0.73rem;color:var(--red);margin-bottom:8px;font-weight:700;display:none}
+
+/* ── NEW: Auto-paid notice banner ── */
+.autopaid-notice{background:#e8f5e9;border:1.5px solid #66bb6a;border-radius:10px;padding:10px 12px;margin-bottom:8px;display:none}
+.autopaid-notice .ap-top{font-size:0.78rem;font-weight:800;color:#2e7d32;margin-bottom:4px}
+.autopaid-notice .ap-sub{font-size:0.72rem;color:#388e3c;line-height:1.4}
+
 /* BUTTONS */
 button{width:100%;padding:10px;border:none;border-radius:8px;font-size:0.9rem;cursor:pointer;margin-bottom:7px;font-weight:700;font-family:inherit;transition:all 0.2s}
 button:hover{opacity:0.88;transform:translateY(-1px)}
@@ -224,7 +230,10 @@ button:disabled{opacity:0.4;cursor:not-allowed;transform:none}
           <input id="appBy" placeholder="Manager / approver name">
         </div>
 
-        <!-- Due Date & Payment — only shown for relevant bill types -->
+        <!-- ══════════════════════════════════════════════════════════
+             SECTION A: Full Due Date + Paid/Unpaid/Partial
+             For: Rent, HVAC, Electricity, CAM, Landline/Net, Tax Invoice
+             ══════════════════════════════════════════════════════════ -->
         <div class="sc" id="dueSec" style="display:none">
           <div class="sc-t">📅 Due Date & Payment</div>
           <div class="g2">
@@ -268,48 +277,53 @@ button:disabled{opacity:0.4;cursor:not-allowed;transform:none}
           </div>
         </div>
 
-        <!-- Payment only (no due date) — for Petty Cash, Store Expenses, etc. -->
-        <div class="sc" id="payOnlySec" style="display:none">
-          <div class="sc-t">💳 Payment Details</div>
+        <!-- ══════════════════════════════════════════════════════════
+             SECTION B: Paid/Unpaid/Partial — NO due date
+             For: Marketing
+             ══════════════════════════════════════════════════════════ -->
+        <div class="sc" id="mktgPaySec" style="display:none">
+          <div class="sc-t">💳 Payment Status</div>
           <div class="g2">
             <div>
               <label class="lbl">Status <span class="req">*</span></label>
-              <select id="pStat2" onchange="onPS2()">
+              <select id="pStat3" onchange="onPS3()">
                 <option value="">— Select —</option>
+                <option value="Unpaid">❌ Unpaid</option>
                 <option value="Paid">✅ Paid</option>
                 <option value="Partial">⚠️ Partial</option>
-                <option value="Unpaid">❌ Pending</option>
               </select>
             </div>
             <div>
               <label class="lbl">Pay Date</label>
-              <input type="date" id="pDate2">
+              <input type="date" id="pDate3">
             </div>
           </div>
-          <div id="pFlds2" style="display:none">
+          <div id="pFlds3" style="display:none">
             <div class="g2">
               <div>
                 <label class="lbl">Paid ₹</label>
                 <div class="amt"><span class="rs">₹</span>
-                  <input type="number" id="aPaid2" placeholder="0.00" inputmode="decimal" step="0.01">
+                  <input type="number" id="aPaid3" placeholder="0.00" inputmode="decimal" step="0.01">
                 </div>
               </div>
               <div>
                 <label class="lbl">Payment Mode</label>
-                <select id="pMode2">
+                <select id="pMode3">
                   <option value="">— Select —</option>
-                  <option>Cash</option><option>UPI</option>
-                  <option>Cheque</option><option>NEFT / RTGS</option>
+                  <option>Cash</option><option>Cheque</option>
+                  <option>NEFT / RTGS</option><option>UPI</option>
                   <option>Credit Card</option><option>Debit Card</option>
                 </select>
               </div>
             </div>
             <label class="lbl">Txn / Cheque Ref No.</label>
-            <input id="txnR2" placeholder="UTR / Cheque number (optional)">
+            <input id="txnR3" placeholder="UTR / Cheque number">
           </div>
         </div>
 
-        <!-- Dynamic Area -->
+        <!-- Sections C/D/E removed — pc, se, oth, inc, cd are auto-Paid, no payment fields needed -->
+
+        <!-- Dynamic Area (bill-type specific fields) -->
         <div id="dynArea"></div>
 
         <!-- Remarks -->
@@ -355,12 +369,33 @@ const UPLOAD_PRESET= "puma_bills";
 const PC_CATS = ["Local Conveyance","Refreshments","Office Supplies","Cleaning Supplies","Printing","Stationery","Courier","Repair","Staff Welfare","Maintenance","Miscellaneous","Other"];
 const SE_CATS = ["Courier","Cleaning Supplies","Office Supplies","Stationery","Maintenance","Printing","Staff Welfare","Repair","Other"];
 
-// ══════════════════════════════════
-// Bill types that NEED due date
-// ══════════════════════════════════
-const NEEDS_DUE = ["rent","hvac","elec","cam","net","tax"];
-// Bill types that DON'T need due date (just payment confirmation)
-const NO_DUE    = ["mktg","pc","se","inc","cd","oth"];
+// ══════════════════════════════════════════════════════════
+// PAYMENT MODE per bill type:
+//
+//  "due"       → Section A: Full due date + Unpaid/Paid/Partial
+//                Rent, HVAC, Electricity, CAM, Landline/Net, Tax Invoice
+//
+//  "mktg"      → Section B: Unpaid/Paid/Partial, no due date
+//                Marketing
+//
+//  "simple"    → Section C: Auto-Paid, just mode + date
+//                Petty Cash, Store Expenses, Other
+//
+//  "inc"       → Section D: Auto-Paid, disbursement details
+//                Incentive
+//
+//  "cd"        → Section E: Cash Deposit info only, no status
+//                Cash Deposit
+// ══════════════════════════════════════════════════════════
+const PAY_MODE = {
+  rent:"due", hvac:"due", elec:"due", cam:"due", net:"due", tax:"due",
+  mktg:"mktg",
+  pc:"simple", se:"simple", oth:"simple",
+  inc:"inc",
+  cd:"cd"
+};
+
+const ALL_PAY_SECS = ["dueSec","mktgPaySec"];
 
 const BT = {
   rent:{ label:"Rent",          icon:"🏠", cls:"p-rent", bdg:"bg-rent", folder:"Rent",
@@ -505,7 +540,7 @@ function setDts(){
   const now=new Date();
   document.getElementById("bDate").value=td(now);
   document.getElementById("pDate").value=td(now);
-  document.getElementById("pDate2").value=td(now);
+  document.getElementById("pDate3").value=td(now);
   const mn=["January","February","March","April","May","June","July","August","September","October","November","December"];
   document.getElementById("bMonth").value=mn[now.getMonth()];
   document.getElementById("bYear").value=String(now.getFullYear());
@@ -520,9 +555,9 @@ function sw(t){
   if(t==="summary")buildSum();
 }
 
-// ══════════════════════════════════
-// BILL TYPE PICK — show/hide correct payment section
-// ══════════════════════════════════
+// ══════════════════════════════════════════════════════════
+// PICK — show correct payment section based on PAY_MODE
+// ══════════════════════════════════════════════════════════
 function pick(k){
   sel=k;
   ALL_KEYS.forEach(b=>{document.getElementById("p-"+b).className="pill";});
@@ -534,16 +569,20 @@ function pick(k){
   showI("✅ "+cfg.icon+" "+cfg.label+" selected.");
   showE("");
 
-  // Show/hide payment sections based on bill type
-  const needsDue = NEEDS_DUE.includes(k);
-  document.getElementById("dueSec").style.display    = needsDue ? "block" : "none";
-  document.getElementById("payOnlySec").style.display= needsDue ? "none"  : "block";
+  // Hide all payment sections first
+  ALL_PAY_SECS.forEach(id=>document.getElementById(id).style.display="none");
 
-  // Reset payment fields
+  // Show the right one
+  const pm=PAY_MODE[k];
+  if(pm==="due")        document.getElementById("dueSec").style.display="block";
+  else if(pm==="mktg")  document.getElementById("mktgPaySec").style.display="block";
+  // simple / inc / cd → no payment section shown
+
+  // Reset statuses
   document.getElementById("pStat").value  = "";
-  document.getElementById("pStat2").value = "";
+  document.getElementById("pStat3").value = "";
   document.getElementById("pFlds").style.display  = "none";
-  document.getElementById("pFlds2").style.display = "none";
+  document.getElementById("pFlds3").style.display = "none";
   document.getElementById("dueW").style.display   = "none";
 }
 
@@ -581,13 +620,15 @@ function chkDue(){
   const v=document.getElementById("dDate").value;
   document.getElementById("dueW").style.display=(v&&new Date(v+"T00:00:00")<new Date())?"block":"none";
 }
+// Section A (due date types)
 function onPS(){
   const v=document.getElementById("pStat").value;
   document.getElementById("pFlds").style.display=(v==="Paid"||v==="Partial")?"block":"none";
 }
-function onPS2(){
-  const v=document.getElementById("pStat2").value;
-  document.getElementById("pFlds2").style.display=(v==="Paid"||v==="Partial")?"block":"none";
+// Section B (Marketing)
+function onPS3(){
+  const v=document.getElementById("pStat3").value;
+  document.getElementById("pFlds3").style.display=(v==="Paid"||v==="Partial")?"block":"none";
 }
 
 function handleFile(e){
@@ -665,23 +706,59 @@ function uploadToCloudinary(base64,mimeType,publicId,folder,callback){
   .catch(err=>callback("Upload failed: "+err.message));
 }
 
+// ══════════════════════════════════════════════════════════
+// Resolve payment fields based on active pay mode
+// Returns: { paymentStatus, amountPaid, paymentDate, paymentMode, txnRef, dueDate }
+// ══════════════════════════════════════════════════════════
+function resolvePayment(){
+  const pm=PAY_MODE[sel];
+  let paymentStatus="", amountPaid=0, paymentDate="", paymentMode="", txnRef="", dueDate="";
+
+  if(pm==="due"){
+    paymentStatus = document.getElementById("pStat").value;
+    dueDate       = document.getElementById("dDate").value;
+    if(paymentStatus==="Paid"||paymentStatus==="Partial"){
+      amountPaid  = parseFloat(document.getElementById("aPaid").value)||0;
+      paymentDate = document.getElementById("pDate").value;
+      paymentMode = document.getElementById("pMode").value;
+      txnRef      = document.getElementById("txnR").value;
+    }
+  }
+  else if(pm==="mktg"){
+    paymentStatus = document.getElementById("pStat3").value;
+    if(paymentStatus==="Paid"||paymentStatus==="Partial"){
+      amountPaid  = parseFloat(document.getElementById("aPaid3").value)||0;
+      paymentDate = document.getElementById("pDate3").value;
+      paymentMode = document.getElementById("pMode3").value;
+      txnRef      = document.getElementById("txnR3").value;
+    }
+  }
+  else if(pm==="simple"||pm==="inc"||pm==="cd"){
+    paymentStatus = "Paid";
+    amountPaid    = parseFloat(document.getElementById("bAmt").value)||0;
+  }
+
+  return {paymentStatus,amountPaid,paymentDate,paymentMode,txnRef,dueDate};
+}
+
 function doSubmit(){
   if(!sel){showE("❌ Select a bill type.");return;}
   if(!fileData){showE("❌ Attach a file or photo.");return;}
   if(!document.getElementById("bDate").value){showE("❌ Enter bill date.");return;}
   if(!document.getElementById("bAmt").value){showE("❌ Enter amount.");return;}
 
-  // Validate payment status — from correct section
-  const needsDue=NEEDS_DUE.includes(sel);
-  const pStatVal = needsDue
-    ? document.getElementById("pStat").value
-    : document.getElementById("pStat2").value;
-  if(!pStatVal){showE("❌ Select payment status.");return;}
+  // Validate payment status for types that require a manual selection
+  const pm=PAY_MODE[sel];
+  if(pm==="due"&&!document.getElementById("pStat").value){showE("❌ Select payment status.");return;}
+  if(pm==="mktg"&&!document.getElementById("pStat3").value){showE("❌ Select payment status.");return;}
+
   showE("");
 
   const cfg=BT[sel];
   const spec={};
   (cfg.fields||[]).forEach(f=>{const el=document.getElementById("d_"+f.id);if(el)spec[f.id]=el.value;});
+
+  const {paymentStatus,amountPaid,paymentDate,paymentMode,txnRef,dueDate}=resolvePayment();
 
   const uploadId="BILL-"+store.id+"-"+Date.now();
   const dateObj=new Date(document.getElementById("bDate").value+"T00:00:00");
@@ -697,13 +774,6 @@ function doSubmit(){
     if(err){dis(false);setSt("");showE("❌ "+err);return;}
     setSt("⏳ Saving to sheet…");
 
-    // Collect payment fields from correct section
-    const paidAmt   = needsDue ? (parseFloat(document.getElementById("aPaid").value)||0)  : (parseFloat(document.getElementById("aPaid2").value)||0);
-    const payDate   = needsDue ? document.getElementById("pDate").value  : document.getElementById("pDate2").value;
-    const payMode   = needsDue ? document.getElementById("pMode").value  : document.getElementById("pMode2").value;
-    const txnRef    = needsDue ? document.getElementById("txnR").value   : document.getElementById("txnR2").value;
-    const dueDate   = needsDue ? document.getElementById("dDate").value  : "";
-
     callScript("uploadBill",{
       storeId:store.id,storeName:store.name,
       billType:cfg.label,
@@ -715,10 +785,10 @@ function doSubmit(){
       vendorName:document.getElementById("vendr").value,
       approvedBy:document.getElementById("appBy").value,
       dueDate,
-      paymentStatus:pStatVal,
-      amountPaid:paidAmt,
-      paymentDate:payDate,
-      paymentMode:payMode,
+      paymentStatus,
+      amountPaid,
+      paymentDate,
+      paymentMode,
       txnRef,
       remarks:document.getElementById("rmks").value,
       pcCategory:spec.pcCat||"",pcItem:spec.pcItem||"",pcPaidTo:spec.pcPaidTo||"",pcVoucher:spec.pcVoucher||"",
@@ -738,7 +808,7 @@ function doSubmit(){
       dis(false);setSt("");
       if(res.success){
         recs=[];
-        showPop("✅","Bill Submitted!",cfg.icon+" "+cfg.label+"\n₹"+parseFloat(document.getElementById("bAmt").value).toLocaleString("en-IN")+"\n"+pStatVal);
+        showPop("✅","Bill Submitted!",cfg.icon+" "+cfg.label+"\n₹"+parseFloat(document.getElementById("bAmt").value).toLocaleString("en-IN")+"\n"+paymentStatus);
         clearForm();
       }else{showE("❌ "+(res.message||"Submit failed."));}
     });
@@ -751,14 +821,17 @@ function clearForm(){
   document.getElementById("formArea").style.display="none";
   document.getElementById("prompt").style.display="block";
   document.getElementById("dynArea").innerHTML="";
+  // Hide all payment sections
+  ALL_PAY_SECS.forEach(id=>document.getElementById(id).style.display="none");
   document.getElementById("pFlds").style.display="none";
-  document.getElementById("pFlds2").style.display="none";
+  document.getElementById("pFlds3").style.display="none";
   document.getElementById("dueW").style.display="none";
-  document.getElementById("dueSec").style.display="none";
-  document.getElementById("payOnlySec").style.display="none";
-  ["bAmt","invNo","vendr","appBy","dDate","aPaid","aPaid2","txnR","txnR2","rmks"].forEach(id=>{const el=document.getElementById(id);if(el)el.value="";});
-  document.getElementById("pStat").value="";document.getElementById("pStat2").value="";
-  document.getElementById("pMode").value="";document.getElementById("pMode2").value="";
+  // Clear fields
+  ["bAmt","invNo","vendr","appBy","dDate","aPaid","aPaid3","txnR","txnR3","rmks"].forEach(id=>{const el=document.getElementById(id);if(el)el.value="";});
+  document.getElementById("pStat").value="";
+  document.getElementById("pStat3").value="";
+  document.getElementById("pMode").value="";
+  document.getElementById("pMode3").value="";
   setDts();showI("");showE("");
 }
 

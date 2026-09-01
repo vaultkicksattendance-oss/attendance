@@ -112,7 +112,28 @@
     <input type="text" id="loginId" placeholder="Employee ID / Login ID" autocomplete="username">
     <input type="password" id="password" placeholder="Password" autocomplete="current-password" onkeydown="if(event.key==='Enter') login()">
     <button id="loginBtn" onclick="login()">🔐 Login</button>
+    <div style="margin-top:10px;font-size:0.8rem;color:#666;">
+      New Joiner? <a href="#" onclick="showRegister();return false;" style="color:#1a237e;font-weight:700;">Register Here</a>
+    </div>
     <div id="statusMsg"></div>
+  </div>
+  <div id="registerDiv" style="display:none;">
+    <div class="logo">📝</div>
+    <h2>New Employee Registration</h2>
+    <div class="subtitle">Fill your details to get Login ID & Password</div>
+    <label class="label">Full Name</label>
+    <input type="text" id="regName" placeholder="Enter your full name">
+    <label class="label">Select Your Store</label>
+    <select id="regStore"><option value="">Loading stores…</option></select>
+    <label class="label">Designation</label>
+    <input type="text" id="regDesignation" placeholder="e.g. Sales Associate">
+    <label class="label">Date of Birth</label>
+    <input type="date" id="regDob">
+    <label class="label">Email (optional)</label>
+    <input type="text" id="regEmail" placeholder="you@example.com">
+    <button id="regSubmitBtn" onclick="registerNewEmployee()">✅ Register</button>
+    <button onclick="showLoginFromRegister()" style="background:#f5f5f5;color:#666;border:1px solid #eee;">← Back to Login</button>
+    <div id="regFormMsg" style="font-size:0.83rem;min-height:18px;"></div>
   </div>
   <div id="attendanceDiv" style="display:none;">
     <div class="logo">👟</div>
@@ -323,6 +344,66 @@ function login(){
       document.getElementById("resignLastDay").value=today;
       setStatus("");startCamera();
     }else{setStatus("❌ "+(res.message||"Invalid Login."));}
+  });
+}
+
+function showRegister(){
+  document.getElementById("loginDiv").style.display="none";
+  document.getElementById("registerDiv").style.display="block";
+  loadStoreList();
+}
+function showLoginFromRegister(){
+  document.getElementById("registerDiv").style.display="none";
+  document.getElementById("loginDiv").style.display="block";
+}
+function loadStoreList(){
+  const sel=document.getElementById("regStore");
+  sel.innerHTML="<option value=''>Loading stores…</option>";
+  callScript("getStoreList",{},function(res){
+    if(res.stores && res.stores.length){
+      let html="<option value=''>-- Select Store --</option>";
+      res.stores.forEach(s=>{
+        html+=`<option value="${s.department}" data-lat="${s.lat}" data-lng="${s.lng}">${s.department}</option>`;
+      });
+      sel.innerHTML=html;
+    }else{
+      sel.innerHTML="<option value=''>No stores found</option>";
+    }
+  });
+}
+function registerNewEmployee(){
+  const name=document.getElementById("regName").value.trim();
+  const sel=document.getElementById("regStore");
+  const department=sel.value;
+  const opt=sel.selectedOptions[0];
+  const storeLat=opt?opt.getAttribute("data-lat"):"";
+  const storeLng=opt?opt.getAttribute("data-lng"):"";
+  const designation=document.getElementById("regDesignation").value.trim();
+  const dob=document.getElementById("regDob").value;
+  const email=document.getElementById("regEmail").value.trim();
+  const msgEl=document.getElementById("regFormMsg");
+
+  if(!name){msgEl.textContent="⚠️ Please enter your name.";msgEl.style.color="#c62828";return;}
+  if(!department){msgEl.textContent="⚠️ Please select your store.";msgEl.style.color="#c62828";return;}
+
+  document.getElementById("regSubmitBtn").disabled=true;
+  msgEl.textContent="Registering…";msgEl.style.color="#555";
+
+  callScript("registerEmployee",{name,department,storeLat,storeLng,designation,dob,email},function(res){
+    document.getElementById("regSubmitBtn").disabled=false;
+    if(res.status){
+      msgEl.textContent="";
+      showPopup("🎉","Registration Successful!","Your Login ID: "+res.loginId+"\nYour Password: "+res.password+"\n\n⚠️ Please save these — you'll need them to log in!",false);
+      document.getElementById("regName").value="";
+      document.getElementById("regDesignation").value="";
+      document.getElementById("regDob").value="";
+      document.getElementById("regEmail").value="";
+      sel.value="";
+      setTimeout(showLoginFromRegister,800);
+    }else{
+      msgEl.textContent="❌ "+(res.message||"Registration failed.");
+      msgEl.style.color="#c62828";
+    }
   });
 }
 

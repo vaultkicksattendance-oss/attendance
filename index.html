@@ -126,11 +126,22 @@
     <label class="label">Select Your Store</label>
     <select id="regStore"><option value="">Loading stores…</option></select>
     <label class="label">Designation</label>
-    <input type="text" id="regDesignation" placeholder="e.g. Sales Associate">
+    <select id="regDesignation" onchange="toggleOtherDesignation()">
+      <option value="">-- Select Designation --</option>
+      <option value="Sales Associate">Sales Associate</option>
+      <option value="Stock Incharge">Stock Incharge</option>
+      <option value="Cashier">Cashier</option>
+      <option value="Store Supervisor">Store Supervisor</option>
+      <option value="Assistant Store Manager">Assistant Store Manager</option>
+      <option value="Store Manager">Store Manager</option>
+      <option value="Stock Boy">Stock Boy</option>
+      <option value="Other">Other (type below)</option>
+    </select>
+    <input type="text" id="regDesignationOther" placeholder="Type designation" style="display:none;">
     <label class="label">Date of Birth</label>
     <input type="date" id="regDob">
-    <label class="label">Email (optional)</label>
-    <input type="text" id="regEmail" placeholder="you@example.com">
+    <label class="label">Mobile Number</label>
+    <input type="tel" id="regMobile" placeholder="10-digit mobile number" maxlength="10" inputmode="numeric">
     <button id="regSubmitBtn" onclick="registerNewEmployee()">✅ Register</button>
     <button onclick="showLoginFromRegister()" style="background:#f5f5f5;color:#666;border:1px solid #eee;">← Back to Login</button>
     <div id="regFormMsg" style="font-size:0.83rem;min-height:18px;"></div>
@@ -356,6 +367,10 @@ function showLoginFromRegister(){
   document.getElementById("registerDiv").style.display="none";
   document.getElementById("loginDiv").style.display="block";
 }
+function toggleOtherDesignation(){
+  const sel=document.getElementById("regDesignation").value;
+  document.getElementById("regDesignationOther").style.display = sel==="Other" ? "block" : "none";
+}
 function loadStoreList(){
   const sel=document.getElementById("regStore");
   sel.innerHTML="<option value=''>Loading stores…</option>";
@@ -378,26 +393,33 @@ function registerNewEmployee(){
   const opt=sel.selectedOptions[0];
   const storeLat=opt?opt.getAttribute("data-lat"):"";
   const storeLng=opt?opt.getAttribute("data-lng"):"";
-  const designation=document.getElementById("regDesignation").value.trim();
+
+  const desigSel=document.getElementById("regDesignation").value;
+  const designation = desigSel==="Other" ? document.getElementById("regDesignationOther").value.trim() : desigSel;
+
   const dob=document.getElementById("regDob").value;
-  const email=document.getElementById("regEmail").value.trim();
+  const mobile=document.getElementById("regMobile").value.trim();
   const msgEl=document.getElementById("regFormMsg");
 
   if(!name){msgEl.textContent="⚠️ Please enter your name.";msgEl.style.color="#c62828";return;}
   if(!department){msgEl.textContent="⚠️ Please select your store.";msgEl.style.color="#c62828";return;}
+  if(!designation){msgEl.textContent="⚠️ Please select/enter designation.";msgEl.style.color="#c62828";return;}
+  if(mobile && !/^[6-9]\d{9}$/.test(mobile)){msgEl.textContent="⚠️ Enter a valid 10-digit mobile number.";msgEl.style.color="#c62828";return;}
 
   document.getElementById("regSubmitBtn").disabled=true;
   msgEl.textContent="Registering…";msgEl.style.color="#555";
 
-  callScript("registerEmployee",{name,department,storeLat,storeLng,designation,dob,email},function(res){
+  callScript("registerEmployee",{name,department,storeLat,storeLng,designation,dob,mobile},function(res){
     document.getElementById("regSubmitBtn").disabled=false;
     if(res.status){
       msgEl.textContent="";
       showPopup("🎉","Registration Successful!","Your Login ID: "+res.loginId+"\nYour Password: "+res.password+"\n\n⚠️ Please save these — you'll need them to log in!",false);
       document.getElementById("regName").value="";
       document.getElementById("regDesignation").value="";
+      document.getElementById("regDesignationOther").value="";
+      document.getElementById("regDesignationOther").style.display="none";
       document.getElementById("regDob").value="";
-      document.getElementById("regEmail").value="";
+      document.getElementById("regMobile").value="";
       sel.value="";
       setTimeout(showLoginFromRegister,800);
     }else{

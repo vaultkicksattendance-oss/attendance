@@ -699,5 +699,217 @@ function logout(){
   showInfo("");showError("");setStatus("");switchTab("mark");
 }
 </script>
+<!-- ═══ ROSTER ADD-ON: ye poora block index.html me </body> se just PEHLE paste karo ═══ -->
+<script>
+// ── UI inject (tab, roster section, reason popup, css) ──
+(function(){
+  const st=document.createElement("style");
+  st.textContent=`
+  .ros-row{display:grid;grid-template-columns:64px 1fr 1fr;gap:4px;align-items:center;margin-bottom:4px;font-size:0.75rem;color:#444;text-align:left;}
+  .ros-row select{margin:0;padding:6px 3px;font-size:0.74rem;border-radius:7px;}
+  .ros-row.ro span{font-weight:600;}
+  .ros-day{font-weight:800;color:#1a237e;}
+  #rosterSubmitBtn{background:linear-gradient(135deg,#1a237e,#3f51b5);color:#fff;}
+  #reasonOverlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:1000;justify-content:center;align-items:center;}
+  #reasonOverlay.show{display:flex;}
+  #reasonBox{background:#fff;border-radius:20px;padding:24px 20px;width:320px;box-shadow:0 12px 40px rgba(0,0,0,0.25);text-align:center;}
+  #reasonInfo{font-size:0.83rem;color:#555;margin-bottom:10px;line-height:1.5;white-space:pre-line;}
+  #reasonOk{background:linear-gradient(135deg,#b71c1c,#e53935);color:#fff;}
+  #reasonCancel{background:#f5f5f5;color:#666;border:1px solid #eee;font-weight:500;}`;
+  document.head.appendChild(st);
+
+  const b=document.createElement("button");
+  b.className="tab";b.id="rosterTabBtn";b.style.display="none";b.textContent="🗓 Roster";
+  b.onclick=function(){switchTab("roster");};
+  document.querySelector("#attendanceDiv .tabs").appendChild(b);
+
+  const t=document.createElement("div");
+  t.id="tab-roster";t.className="tab-content";
+  t.innerHTML='<div class="section-title">🗓 Weekly Roster</div><div id="rosterBody"><div class="loading-spinner">Loading…</div></div>';
+  document.getElementById("attendanceDiv").appendChild(t);
+
+  const o=document.createElement("div");
+  o.id="reasonOverlay";
+  o.innerHTML='<div id="reasonBox"><div style="font-size:2.4rem;">⏰</div><div style="font-size:1.05rem;font-weight:800;color:#b71c1c;margin-bottom:8px;">Early Clock Out</div><div id="reasonInfo"></div><textarea id="earlyReason" placeholder="Jaldi jaane ka reason likhein…"></textarea><div id="reasonErr" style="font-size:0.78rem;color:#c62828;min-height:16px;margin-bottom:6px;"></div><button id="reasonOk" onclick="submitEarlyReason()">✅ Submit & Clock Out</button><button id="reasonCancel" onclick="cancelEarlyReason()">Cancel</button></div>';
+  document.body.appendChild(o);
+})();
+
+let rosterData=null, reasonCb=null;
+const ROS_STATUS=["Working","Week Off","Leave","Comp Off"];
+const DAYN=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
+
+// ── overrides (purane functions ki jagah ye chalenge) ──
+function switchTab(tab){
+  const names=["mark","calendar","records","apply","regularize","resign","roster"];
+  document.querySelectorAll(".tab").forEach((t,i)=>t.classList.toggle("active",names[i]===tab));
+  document.querySelectorAll(".tab-content").forEach(c=>c.classList.remove("active"));
+  document.getElementById("tab-"+tab).classList.add("active");
+  if(tab==="calendar"||tab==="records")loadMyData();
+  if(tab==="regularize")loadMyRequests(false);
+  if(tab==="resign")loadMyResignation(false);
+  if(tab==="roster")loadRoster(false);
+}
+
+function login(){
+  const loginId=document.getElementById("loginId").value.trim();
+  const password=document.getElementById("password").value.trim();
+  if(!loginId||!password){setStatus("⚠️ Please enter Login ID and Password.");return;}
+  setStatus("Logging in…");setBtns(true);
+  callScript("login",{loginId,password},function(res){
+    setBtns(false);
+    if(res.status){
+      currentUser=loginId;currentName=res.name;
+      document.getElementById("loginDiv").style.display="none";
+      document.getElementById("attendanceDiv").style.display="block";
+      document.getElementById("welcome").textContent="Welcome, "+res.name+" 👋";
+      const today=toDateStr(new Date());
+      document.getElementById("applyDate").value=today;
+      document.getElementById("regDate").value=today;
+      document.getElementById("resignLastDay").value=today;
+      setStatus("");startCamera();
+      if(res.isManager){document.getElementById("rosterTabBtn").style.display="";loadRoster(true);}
+    }else{setStatus("❌ "+(res.message||"Invalid Login."));}
+  });
+}
+
+function logout(){
+  stopCamera();retakePhoto();currentUser=currentName="";myData=[];myRequests=[];rosterData=null;
+  document.getElementById("rosterTabBtn").style.display="none";
+  document.getElementById("loginId").value="";document.getElementById("password").value="";
+  document.getElementById("attendanceDiv").style.display="none";document.getElementById("loginDiv").style.display="block";
+  showInfo("");showError("");setStatus("");switchTab("mark");
+}
+
+// ── Clock Out with early-out reason ──
+function clockOut(){
+  if(!photoBlob){setStatus("⚠️ Please take a photo first.");return;}
+  setBtns(true);setStatus("⏳ Checking…");
+  callScript("checkClockOut",{loginId:currentUser},function(check){
+    if(!check.canClockOut){
+      setBtns(false);retakePhoto();
+      if(check.reason==="already_out")showPopup("⚠️","Already Clocked Out!","You have already clocked out today.",false);
+      else if(check.reason==="not_clocked_in")showPopup("⚠️","Not Clocked In!","Please Clock In first before clocking out.",false);
+      else showPopup("⚠️","Cannot Clock Out",check.message||"Please try again.",false);
+      return;
+    }
+    callScript("checkEarlyOut",{loginId:currentUser},function(e){
+      if(e&&e.early){setStatus("");askEarlyReason(e.hours,function(reason){doClockOut(reason,e.hours);});}
+      else doClockOut("",e&&e.hours);
+    });
+  });
+}
+function doClockOut(reason,earlyHours){
+  setBtns(true);
+  getLocation(function(lat,lng){
+    uploadToCloudinary(photoBlob,"OUT")
+    .then(function(photoUrl){
+      setStatus("⏳ Recording attendance…");
+      callScript("clockOut",{loginId:currentUser,lat,lng,photoUrl,reason},function(res){
+        setBtns(false);
+        if(res.status===true){
+          setStatus("");myData=[];
+          const hrs=(typeof res.hours==="number"&&isFinite(res.hours))?res.hours:(earlyHours!=null?earlyHours:"-");
+          if(res.shortDuty){
+            lastShortDutyDate=toDateStr(new Date());
+            showPopup("⚠️","Short Duty Detected!","You worked only "+hrs+" hrs today.\nRequired: 9 hours.\n\nIn: "+res.inTime+"\nOut: "+res.outTime+"\n\nSubmit a regularization request?",true);
+          }else{showPopup("🔴","Clock Out Successful! 🎉","Departure recorded.\nTime: "+new Date().toLocaleTimeString()+"\nTotal: "+hrs+" hrs",false);}
+          retakePhoto();
+        }else if(res.needReason){showPopup("⚠️","Reason Required",res.message,false);retakePhoto();}
+        else{showPopup("⚠️","Clock Out Issue",res.message||"Something went wrong.",false);retakePhoto();}
+      });
+    })
+    .catch(function(err){setBtns(false);setStatus("");showError("❌ Photo upload failed: "+err.message);});
+  });
+}
+function askEarlyReason(h,cb){
+  reasonCb=cb;
+  document.getElementById("reasonInfo").textContent="Aapne sirf "+h+" hrs kaam kiya hai.\nRequired: 9 hrs. Jaldi jaane ka reason likhein:";
+  document.getElementById("earlyReason").value="";
+  document.getElementById("reasonErr").textContent="";
+  document.getElementById("reasonOverlay").classList.add("show");
+}
+function submitEarlyReason(){
+  const r=document.getElementById("earlyReason").value.trim();
+  if(r.length<5){document.getElementById("reasonErr").textContent="⚠️ Reason likhna zaruri hai (min 5 characters).";return;}
+  document.getElementById("reasonOverlay").classList.remove("show");
+  if(reasonCb)reasonCb(r);
+}
+function cancelEarlyReason(){
+  document.getElementById("reasonOverlay").classList.remove("show");
+  reasonCb=null;setBtns(false);setStatus("");
+}
+
+// ── Roster ──
+function loadRoster(auto){
+  const el=document.getElementById("rosterBody");
+  if(rosterData&&!auto){renderRoster();return;}
+  el.innerHTML="<div class='loading-spinner'>Loading…</div>";
+  callScript("getRosterForm",{loginId:currentUser},function(res){
+    rosterData=res;renderRoster();
+    if(auto&&res.status&&res.eligible&&!res.submitted)switchTab("roster");
+  });
+}
+function rosterDayLabel(i,ds){return DAYN[i]+" "+ds.slice(8,10)+"/"+ds.slice(5,7);}
+function renderRoster(){
+  const el=document.getElementById("rosterBody"),d=rosterData;
+  if(!d||!d.status){el.innerHTML="<div class='empty-msg'>"+esc(d&&d.message||"Roster load nahi hua.")+"</div>";return;}
+  if(!d.eligible){el.innerHTML="<div class='reg-card'>ℹ️ "+esc(d.message)+"</div>";return;}
+  const wd=d.weekDates;
+  let h="<div class='reg-card'><b>📅 Week:</b> "+wd[0]+" → "+wd[6]+"</div>";
+  if(d.submitted){
+    h+="<div class='reg-card' style='background:#e8f5e9;'>🔒 Roster submit ho chuka hai (by "+esc(d.submittedBy)+"). Edit allowed nahi.</div>";
+    const g={},order=[];
+    d.rows.forEach(r=>{if(!g[r.loginId]){g[r.loginId]={name:r.name,staffId:r.staffId,days:{}};order.push(r.loginId);}g[r.loginId].days[r.date]=r;});
+    order.forEach(id=>{
+      h+="<div class='reg-card'><div class='reg-date'>👤 "+esc(g[id].name)+"</div><div style='font-size:0.7rem;color:#888;margin-bottom:6px;'>ID: "+esc(g[id].staffId||id)+"</div>";
+      wd.forEach((ds,k)=>{const r=g[id].days[ds];h+="<div class='ros-row ro'><span class='ros-day'>"+rosterDayLabel(k,ds)+"</span><span>"+esc(r?r.status:"-")+"</span><span>"+esc(r&&r.shift?r.shift:"")+"</span></div>";});
+      h+="</div>";
+    });
+    el.innerHTML=h;return;
+  }
+  h+="<div class='reg-card' style='font-size:0.74rem;color:#888;'>Apna aur apne staff ka roster bharein. Submit ke baad edit nahi hoga.</div>";
+  const shiftOpts=d.shifts.map(s=>"<option>"+esc(s)+"</option>").join("");
+  const statusOpts="<option value=''>Status</option>"+ROS_STATUS.map(s=>"<option>"+s+"</option>").join("");
+  d.employees.forEach((em,i)=>{
+    h+="<div class='reg-card'><div class='reg-date'>👤 "+esc(em.name)+"</div><div style='font-size:0.7rem;color:#888;margin-bottom:6px;'>ID: "+esc(em.staffId||em.loginId)+" · "+esc(em.designation)+"</div>";
+    h+="<select onchange='rosterQuickFill("+i+",this)' style='margin-bottom:6px;font-size:0.76rem;padding:7px;'><option value=''>⚡ Sab din Working + shift</option>"+shiftOpts+"</select>";
+    for(let k=0;k<7;k++){
+      h+="<div class='ros-row'><span class='ros-day'>"+rosterDayLabel(k,wd[k])+"</span><select id='rs_"+i+"_"+k+"' onchange='rosterStatusChange("+i+","+k+")'>"+statusOpts+"</select><select id='rt_"+i+"_"+k+"' disabled><option value=''>Shift</option>"+shiftOpts+"</select></div>";
+    }
+    h+="</div>";
+  });
+  h+="<button id='rosterSubmitBtn' onclick='submitRosterForm()'>📤 Submit Roster</button><div id='rosterMsg' style='font-size:0.82rem;min-height:16px;color:#c62828;margin-top:4px;'></div>";
+  el.innerHTML=h;
+}
+function rosterStatusChange(i,k){
+  const s=document.getElementById("rs_"+i+"_"+k).value,t=document.getElementById("rt_"+i+"_"+k);
+  t.disabled=(s!=="Working");if(s!=="Working")t.value="";
+}
+function rosterQuickFill(i,sel){
+  const v=sel.value;if(!v)return;
+  for(let k=0;k<7;k++){document.getElementById("rs_"+i+"_"+k).value="Working";rosterStatusChange(i,k);document.getElementById("rt_"+i+"_"+k).value=v;}
+  sel.value="";
+}
+function submitRosterForm(){
+  const d=rosterData,msg=document.getElementById("rosterMsg"),entries=[];
+  for(let i=0;i<d.employees.length;i++){
+    for(let k=0;k<7;k++){
+      const s=document.getElementById("rs_"+i+"_"+k).value,t=document.getElementById("rt_"+i+"_"+k).value;
+      const lbl=d.employees[i].name+" – "+rosterDayLabel(k,d.weekDates[k]);
+      if(!s){msg.textContent="⚠️ "+lbl+": status select karein.";return;}
+      if(s==="Working"&&!t){msg.textContent="⚠️ "+lbl+": shift select karein.";return;}
+      entries.push({loginId:d.employees[i].loginId,date:d.weekDates[k],status:s,shift:s==="Working"?t:""});
+    }
+  }
+  if(!confirm("Roster submit karne ke baad edit nahi hoga. Submit karein?"))return;
+  const btn=document.getElementById("rosterSubmitBtn");btn.disabled=true;msg.style.color="#555";msg.textContent="Submitting…";
+  callScript("submitRoster",{loginId:currentUser,weekStart:d.weekStart,entries},function(res){
+    btn.disabled=false;
+    if(res.status){showPopup("✅","Roster Submitted!",res.message,false);rosterData=null;loadRoster(true);}
+    else{msg.style.color="#c62828";msg.textContent=res.message||"Submit fail hua.";}
+  });
+}
+</script>
 </body>
 </html>

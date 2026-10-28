@@ -699,7 +699,7 @@ function logout(){
   showInfo("");showError("");setStatus("");switchTab("mark");
 }
 </script>
-<!-- ═══ ROSTER ADD-ON: ye poora block index.html me </body> se just PEHLE paste karo ═══ -->
+  <!-- ═══ ROSTER ADD-ON START ═══ -->
 <script>
 // ── UI inject (tab, roster section, reason popup, css) ──
 (function(){
@@ -730,7 +730,7 @@ function logout(){
 
   const o=document.createElement("div");
   o.id="reasonOverlay";
-  o.innerHTML='<div id="reasonBox"><div style="font-size:2.4rem;">⏰</div><div style="font-size:1.05rem;font-weight:800;color:#b71c1c;margin-bottom:8px;">Early Clock Out</div><div id="reasonInfo"></div><textarea id="earlyReason" placeholder="Jaldi jaane ka reason likhein…"></textarea><div id="reasonErr" style="font-size:0.78rem;color:#c62828;min-height:16px;margin-bottom:6px;"></div><button id="reasonOk" onclick="submitEarlyReason()">✅ Submit & Clock Out</button><button id="reasonCancel" onclick="cancelEarlyReason()">Cancel</button></div>';
+  o.innerHTML='<div id="reasonBox"><div style="font-size:2.4rem;">⏰</div><div style="font-size:1.05rem;font-weight:800;color:#b71c1c;margin-bottom:8px;">Early Clock Out</div><div id="reasonInfo"></div><textarea id="earlyReason" placeholder="Reason for leaving early…"></textarea><div id="reasonErr" style="font-size:0.78rem;color:#c62828;min-height:16px;margin-bottom:6px;"></div><button id="reasonOk" onclick="submitEarlyReason()">✅ Submit &amp; Clock Out</button><button id="reasonCancel" onclick="cancelEarlyReason()">Cancel</button></div>';
   document.body.appendChild(o);
 })();
 
@@ -739,7 +739,7 @@ const ROS_STATUS=["Working","Week Off","Leave","Comp Off"];
 const DAYN=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
 function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
 
-// ── overrides (purane functions ki jagah ye chalenge) ──
+// ── overrides (these replace the older functions of the same name) ──
 function switchTab(tab){
   const names=["mark","calendar","records","apply","regularize","resign","roster"];
   document.querySelectorAll(".tab").forEach((t,i)=>t.classList.toggle("active",names[i]===tab));
@@ -824,14 +824,14 @@ function doClockOut(reason,earlyHours){
 }
 function askEarlyReason(h,cb){
   reasonCb=cb;
-  document.getElementById("reasonInfo").textContent="Aapne sirf "+h+" hrs kaam kiya hai.\nRequired: 9 hrs. Jaldi jaane ka reason likhein:";
+  document.getElementById("reasonInfo").textContent="You worked only "+h+" hrs today.\nRequired: 9 hrs. Please enter the reason for leaving early:";
   document.getElementById("earlyReason").value="";
   document.getElementById("reasonErr").textContent="";
   document.getElementById("reasonOverlay").classList.add("show");
 }
 function submitEarlyReason(){
   const r=document.getElementById("earlyReason").value.trim();
-  if(r.length<5){document.getElementById("reasonErr").textContent="⚠️ Reason likhna zaruri hai (min 5 characters).";return;}
+  if(r.length<5){document.getElementById("reasonErr").textContent="⚠️ A reason is required (min 5 characters).";return;}
   document.getElementById("reasonOverlay").classList.remove("show");
   if(reasonCb)reasonCb(r);
 }
@@ -853,12 +853,12 @@ function loadRoster(auto){
 function rosterDayLabel(i,ds){return DAYN[i]+" "+ds.slice(8,10)+"/"+ds.slice(5,7);}
 function renderRoster(){
   const el=document.getElementById("rosterBody"),d=rosterData;
-  if(!d||!d.status){el.innerHTML="<div class='empty-msg'>"+esc(d&&d.message||"Roster load nahi hua.")+"</div>";return;}
+  if(!d||!d.status){el.innerHTML="<div class='empty-msg'>"+esc(d&&d.message||"Roster could not be loaded.")+"</div>";return;}
   if(!d.eligible){el.innerHTML="<div class='reg-card'>ℹ️ "+esc(d.message)+"</div>";return;}
   const wd=d.weekDates;
   let h="<div class='reg-card'><b>📅 Week:</b> "+wd[0]+" → "+wd[6]+"</div>";
   if(d.submitted){
-    h+="<div class='reg-card' style='background:#e8f5e9;'>🔒 Roster submit ho chuka hai (by "+esc(d.submittedBy)+"). Edit allowed nahi.</div>";
+    h+="<div class='reg-card' style='background:#e8f5e9;'>🔒 Roster already submitted (by "+esc(d.submittedBy)+"). Editing is not allowed.</div>";
     const g={},order=[];
     d.rows.forEach(r=>{if(!g[r.loginId]){g[r.loginId]={name:r.name,staffId:r.staffId,days:{}};order.push(r.loginId);}g[r.loginId].days[r.date]=r;});
     order.forEach(id=>{
@@ -868,12 +868,12 @@ function renderRoster(){
     });
     el.innerHTML=h;return;
   }
-  h+="<div class='reg-card' style='font-size:0.74rem;color:#888;'>Apna aur apne staff ka roster bharein. Submit ke baad edit nahi hoga.</div>";
+  h+="<div class='reg-card' style='font-size:0.74rem;color:#888;'>Fill in the roster for yourself and your staff. It cannot be edited after submitting.</div>";
   const shiftOpts=d.shifts.map(s=>"<option>"+esc(s)+"</option>").join("");
   const statusOpts="<option value=''>Status</option>"+ROS_STATUS.map(s=>"<option>"+s+"</option>").join("");
   d.employees.forEach((em,i)=>{
     h+="<div class='reg-card'><div class='reg-date'>👤 "+esc(em.name)+"</div><div style='font-size:0.7rem;color:#888;margin-bottom:6px;'>ID: "+esc(em.staffId||em.loginId)+" · "+esc(em.designation)+"</div>";
-    h+="<select onchange='rosterQuickFill("+i+",this)' style='margin-bottom:6px;font-size:0.76rem;padding:7px;'><option value=''>⚡ Sab din Working + shift</option>"+shiftOpts+"</select>";
+    h+="<select onchange='rosterQuickFill("+i+",this)' style='margin-bottom:6px;font-size:0.76rem;padding:7px;'><option value=''>⚡ Fill all days: Working + shift</option>"+shiftOpts+"</select>";
     for(let k=0;k<7;k++){
       h+="<div class='ros-row'><span class='ros-day'>"+rosterDayLabel(k,wd[k])+"</span><select id='rs_"+i+"_"+k+"' onchange='rosterStatusChange("+i+","+k+")'>"+statusOpts+"</select><select id='rt_"+i+"_"+k+"' disabled><option value=''>Shift</option>"+shiftOpts+"</select></div>";
     }
@@ -897,19 +897,20 @@ function submitRosterForm(){
     for(let k=0;k<7;k++){
       const s=document.getElementById("rs_"+i+"_"+k).value,t=document.getElementById("rt_"+i+"_"+k).value;
       const lbl=d.employees[i].name+" – "+rosterDayLabel(k,d.weekDates[k]);
-      if(!s){msg.textContent="⚠️ "+lbl+": status select karein.";return;}
-      if(s==="Working"&&!t){msg.textContent="⚠️ "+lbl+": shift select karein.";return;}
+      if(!s){msg.style.color="#c62828";msg.textContent="⚠️ "+lbl+": please select a status.";return;}
+      if(s==="Working"&&!t){msg.style.color="#c62828";msg.textContent="⚠️ "+lbl+": please select a shift.";return;}
       entries.push({loginId:d.employees[i].loginId,date:d.weekDates[k],status:s,shift:s==="Working"?t:""});
     }
   }
-  if(!confirm("Roster submit karne ke baad edit nahi hoga. Submit karein?"))return;
+  if(!confirm("The roster cannot be edited after submission. Submit now?"))return;
   const btn=document.getElementById("rosterSubmitBtn");btn.disabled=true;msg.style.color="#555";msg.textContent="Submitting…";
   callScript("submitRoster",{loginId:currentUser,weekStart:d.weekStart,entries},function(res){
     btn.disabled=false;
     if(res.status){showPopup("✅","Roster Submitted!",res.message,false);rosterData=null;loadRoster(true);}
-    else{msg.style.color="#c62828";msg.textContent=res.message||"Submit fail hua.";}
+    else{msg.style.color="#c62828";msg.textContent=res.message||"Submit failed.";}
   });
 }
 </script>
+<!-- ═══ ROSTER ADD-ON END ═══ -->
 </body>
 </html>
